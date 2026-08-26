@@ -1,0 +1,1182 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>معاينة البيع السريع للتضليل</title>
+    <style>
+        :root { color-scheme: dark; --panel:#0f172a; --panel2:#172033; --line:#2a3850; --blue:#2563eb; --muted:#94a3b8; --green:#34d399; --amber:#fbbf24; }
+        * { box-sizing:border-box }
+        body { margin:0; min-height:100vh; font-family:Tahoma,Arial,sans-serif; color:#fff; background:radial-gradient(circle at top,#15203a 0,#080d19 38%,#050913 100%); }
+        button,input,select { font:inherit }
+        button { cursor:pointer }
+        button:disabled { cursor:not-allowed; opacity:.55; }
+        .page { max-width:1180px; margin:auto; padding:28px 18px 70px; }
+        .topbar,.card { background:rgba(15,23,42,.94); border:1px solid var(--line); border-radius:20px; box-shadow:0 18px 50px rgba(0,0,0,.24); }
+        .topbar { display:flex; justify-content:space-between; align-items:center; padding:16px 20px; margin-bottom:22px; }
+        .title { font-size:22px; font-weight:900; }
+        .badge { background:#192235; border:1px solid #334155; border-radius:11px; padding:10px 15px; color:#cbd5e1; }
+        .layout { display:grid; grid-template-columns:minmax(0,2fr) minmax(300px,1fr); gap:20px; }
+        .stack { display:grid; gap:18px; }
+        .card { padding:18px; }
+        .label { display:block; color:#aab6ca; font-size:12px; font-weight:800; margin-bottom:8px; }
+        .input { width:100%; color:white; background:#1a2436; border:1px solid #334155; border-radius:12px; padding:13px 14px; outline:none; }
+        .input:focus { border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.15); }
+        .search-row { display:grid; grid-template-columns:1fr auto; gap:10px; }
+        .primary,.secondary,.danger,.ghost { border:0; border-radius:12px; padding:12px 16px; font-weight:900; color:#fff; }
+        .primary { background:linear-gradient(135deg,#2563eb,#1d4ed8); }
+        .secondary { background:linear-gradient(135deg,#059669,#047857); }
+        .ghost { background:#202b3f; border:1px solid #3a4861; }
+        .danger { background:#7f1d1d; }
+        .products { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; margin-top:14px; }
+        .product { display:flex; justify-content:space-between; gap:10px; padding:13px; background:#172033; border:1px solid #334155; border-radius:14px; }
+        .product b { display:block; margin-bottom:5px; }
+        .stock { color:var(--green); font-size:11px; }
+        .price { color:#60a5fa; font-weight:900; white-space:nowrap; }
+        .section-head { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:14px; }
+        .section-head h2 { margin:0; font-size:17px; }
+        .cart-empty { padding:34px 10px; text-align:center; color:#64748b; border:1px dashed #334155; border-radius:14px; }
+        .cart-item { margin-top:10px; padding:14px; background:#151f31; border:1px solid #334155; border-radius:15px; }
+        .cart-item-top { display:flex; justify-content:space-between; gap:10px; }
+        .cart-meta { margin-top:7px; color:#94a3b8; font-size:12px; line-height:1.8; }
+        .cart-price { color:#60a5fa; font-weight:900; }
+        .summary { display:grid; gap:11px; }
+        .sum-row { display:flex; justify-content:space-between; color:#cbd5e1; }
+        .sum-row.total { padding-top:13px; color:white; border-top:1px solid #334155; font-size:19px; font-weight:900; }
+        .pay-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:9px; }
+        .pay { padding:12px; color:#cbd5e1; background:#172033; border:1px solid #334155; border-radius:12px; font-weight:800; }
+        .pay.active { color:white; background:#172554; border-color:#3b82f6; }
+        .confirm { width:100%; margin-top:16px; padding:16px; font-size:18px; }
+        .modal-wrap { position:fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center; padding:18px; background:rgba(2,6,23,.82); backdrop-filter:blur(5px); }
+        .modal-wrap.open { display:flex; }
+        .modal { width:min(920px,100%); max-height:94vh; overflow:auto; background:#0e1728; border:1px solid #34435e; border-radius:22px; box-shadow:0 30px 100px rgba(0,0,0,.6); }
+        .modal-head { position:sticky; top:0; z-index:2; display:flex; justify-content:space-between; align-items:center; padding:18px 20px; background:#111b2e; border-bottom:1px solid #2b3951; }
+        .modal-head h2 { margin:0; font-size:20px; }
+        .modal-body { padding:20px; }
+        .flow { display:flex; align-items:center; gap:8px; margin-bottom:18px; color:#64748b; font-size:11px; }
+        .flow span { padding:7px 10px; background:#111d30; border:1px solid #263650; border-radius:999px; }
+        .flow span.done { color:#bfdbfe; border-color:#2563eb; }
+        .flow span.current { color:white; background:#1d4ed8; border-color:#60a5fa; }
+        .step { margin-top:18px; padding-top:18px; border-top:1px solid #223047; }
+        .step:first-of-type { margin-top:0; padding-top:0; border-top:0; }
+        .choice-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+        .work-choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; }
+        .choice { min-height:76px; padding:14px; color:#cbd5e1; text-align:right; background:#172238; border:1px solid #334155; border-radius:14px; font-weight:900; }
+        .choice b,.choice span { display:block; }
+        .choice span { margin-top:6px; color:#8795ab; font-size:10px; font-weight:400; line-height:1.6; }
+        .choice.active { color:#fff; background:#1d4ed8; border-color:#60a5fa; box-shadow:0 0 0 3px rgba(59,130,246,.12); }
+        .choice.add-choice { border-style:dashed; border-color:#8b5cf6; background:#21183a; }
+        .work-card { min-height:210px; padding:18px; border-radius:17px; }
+        .work-card-head { display:flex!important; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:13px!important; }
+        .work-card-title { color:#fff; font-size:20px; font-weight:900; }
+        .work-card-description { margin-top:4px!important; color:#aab6ca!important; font-size:12px!important; }
+        .work-card-state { min-width:62px; padding:6px 8px; color:#94a3b8!important; text-align:center; background:#0f172a; border:1px solid #334155; border-radius:999px; font-size:10px!important; }
+        .work-card.active .work-card-state { color:#d1fae5!important; background:#065f46; border-color:#34d399; }
+        .control-label { margin:11px 0 7px!important; color:#cbd5e1!important; font-size:12px!important; font-weight:900!important; }
+        .exclusive-note { margin-top:10px!important; padding:8px 10px; color:#bfdbfe!important; background:#172554; border:1px solid #1d4ed8; border-radius:9px; font-size:10px!important; }
+        .window-counter { display:flex; align-items:center; justify-content:space-between; gap:8px; margin-top:10px; padding-top:9px; border-top:1px solid rgba(255,255,255,.14); }
+        .window-counter button { min-width:42px; height:34px; padding:0 12px; color:#fff; background:#0f172a; border:1px solid #60a5fa; border-radius:8px; font-weight:900; }
+        .window-counter button.active { background:#2563eb; border-color:#93c5fd; box-shadow:0 0 0 2px rgba(96,165,250,.2); }
+        .size-selector { display:grid; grid-template-columns:1fr 1fr; gap:7px; margin-top:10px; padding-top:9px; border-top:1px solid rgba(255,255,255,.14); }
+        .size-selector button { min-height:42px; padding:10px; color:#cbd5e1; background:#0f172a; border:1px solid #475569; border-radius:9px; font-weight:900; }
+        .size-selector button.active { color:#fff; background:#059669; border-color:#6ee7b7; }
+        .grade-selector { display:grid; grid-template-columns:repeat(4,1fr); gap:5px; margin-top:8px; }
+        .grade-selector button { min-height:38px; padding:9px 4px; color:#cbd5e1; background:#111827; border:1px solid #475569; border-radius:8px; font-size:13px; font-weight:900; }
+        .grade-selector button.active { color:#111827; background:#fbbf24; border-color:#fde68a; }
+        .size-grade-block { margin-top:10px; padding:11px; background:rgba(2,6,23,.3); border:1px solid rgba(148,163,184,.2); border-radius:10px; }
+        .size-grade-title { display:flex!important; justify-content:space-between; color:#cbd5e1!important; font-size:12px!important; }
+        .grade-badge { padding:4px 8px; color:#fef3c7; background:#78350f; border:1px solid #d97706; border-radius:7px; font-size:10px; white-space:nowrap; }
+        .option-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+        .fraction-option { position:relative; padding:14px; color:#fff; text-align:right; background:#151f31; border:1px solid #334155; border-radius:15px; }
+        .fraction-option:hover { border-color:#38bdf8; background:#10283d; }
+        .fraction-option.selected-price { border-color:#34d399; background:#064e3b; box-shadow:0 0 0 3px rgba(52,211,153,.12); }
+        .fraction-option.custom { border-style:dashed; border-color:#8b5cf6; background:#21183a; }
+        .option-head { display:flex; justify-content:space-between; gap:10px; margin-bottom:9px; }
+        .source-tag { padding:4px 7px; color:#bfdbfe; background:#172554; border:1px solid #1d4ed8; border-radius:7px; font-size:9px; white-space:nowrap; }
+        .option-meta { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+        .option-meta span { padding:8px; color:#94a3b8; background:#0f1829; border-radius:9px; font-size:10px; }
+        .option-meta b { display:block; margin-top:4px; color:#fff; font-size:11px; }
+        .empty-options { grid-column:1/-1; padding:25px; color:#94a3b8; text-align:center; background:#101a2c; border:1px dashed #334155; border-radius:14px; }
+        .custom-panel { margin-top:12px; padding:16px; background:#18152d; border:1px solid #6d4bc3; border-radius:15px; }
+        .custom-rows { display:grid; gap:12px; }
+        .custom-row { position:relative; padding:14px; background:#111827; border:1px solid #4c3b78; border-radius:13px; }
+        .custom-row-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+        .custom-grid { display:grid; grid-template-columns:1.2fr 1fr .8fr .65fr .8fr; gap:10px; }
+        .custom-actions { display:flex; flex-wrap:wrap; gap:9px; margin-top:12px; }
+        .full-composition { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:12px; }
+        .full-part { min-width:0; padding:13px; background:#0f1b2d; border:1px solid #315077; border-radius:12px; }
+        .full-part strong { display:block; margin-bottom:4px; color:#fff; font-size:15px; }
+        .full-part small { display:block; min-height:38px; color:#94a3b8; line-height:1.6; }
+        .full-part .grade-selector { margin-top:8px; }
+        .full-type-selector { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:5px; margin-top:8px; }
+        .full-type-selector button { min-height:36px; padding:7px 5px; color:#cbd5e1; background:#111827; border:1px solid #475569; border-radius:8px; font-size:11px; font-weight:900; }
+        .full-type-selector button.active { color:#fff; background:#2563eb; border-color:#93c5fd; }
+        .full-part .size-selector { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .full-source-note { margin-top:10px!important; padding:8px; color:#d1fae5!important; background:#064e3b; border:1px solid #059669; border-radius:8px; font-size:10px!important; }
+        .cart-cost { margin-top:6px; color:#fbbf24; font-size:12px; font-weight:900; }
+        .cart-totals { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:10px; padding-top:10px; border-top:1px solid #334155; }
+        .cart-total-chip { padding:8px 10px; background:#0f172a; border-radius:9px; font-size:11px; color:#94a3b8; }
+        .cart-total-chip b { display:block; margin-top:4px; color:#fff; font-size:13px; }
+        .builder-list { display:grid; gap:8px; }
+        .builder-row { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; padding:14px; background:#141e31; border:1px solid #2c3a52; border-radius:13px; }
+        .builder-row-content { min-width:0; flex:1; }
+        .builder-row-title { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+        .part-metrics { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:7px; }
+        .part-metric { padding:8px; background:#0d1728; border:1px solid #263650; border-radius:9px; }
+        .part-metric span { display:block; color:#94a3b8; font-size:9px; line-height:1.4; }
+        .part-metric b { display:block; margin-top:4px; color:#fff; font-size:11px; }
+        .part-metric.waste { border-color:#854d0e; background:#211805; }
+        .part-metric.waste b { color:#fbbf24; }
+        .part-metric.cost { border-color:#166534; background:#082317; }
+        .part-metric.cost b { color:#6ee7b7; }
+        .preview-box { margin-top:16px; padding:15px; background:#071426; border:1px solid #1e3a5f; border-radius:15px; }
+        .preview-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+        .price-review-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:16px; }
+        .operation-totals { display:grid; grid-template-columns:repeat(6,minmax(0,1fr)); gap:8px; margin-top:12px; }
+        .operation-total { padding:11px; background:#0d1728; border:1px solid #263650; border-radius:11px; }
+        .operation-total span { display:block; color:#94a3b8; font-size:10px; }
+        .operation-total b { display:block; margin-top:6px; color:#fff; font-size:14px; }
+        .operation-total.sales b { color:#60a5fa; }
+        .operation-total.cost b { color:#6ee7b7; }
+        .operation-total.waste b { color:#fbbf24; }
+        .formulas-box { margin-top:12px; padding:13px; color:#cbd5e1; background:#091426; border:1px solid #1e3a5f; border-radius:12px; font-size:11px; line-height:1.9; }
+        .formulas-box strong { color:#93c5fd; }
+        .formulas-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:4px 18px; margin-top:7px; }
+        .price-review-item { padding:12px; background:#111d30; border:1px solid #263650; border-radius:12px; }
+        .price-review-item .label { margin-bottom:7px; }
+        .price-review-item .input[readonly] { color:#cbd5e1; background:#0b1322; cursor:default; }
+        .price-review-item.cost { border-color:#92400e; background:#1c160d; }
+        .price-review-item.cost .input[readonly] { color:#fbbf24; }
+        .metric { padding:12px; background:#111d30; border:1px solid #263650; border-radius:12px; }
+        .metric span { display:block; margin-bottom:6px; color:#94a3b8; font-size:11px; }
+        .metric b { font-size:16px; }
+        .note { margin-top:13px; padding:10px; color:#93c5fd; background:#172554; border:1px solid #1d4ed8; border-radius:10px; font-size:11px; line-height:1.7; }
+        .modal-actions { display:flex; gap:10px; margin-top:18px; }
+        .modal-actions .primary { flex:1; }
+        .hidden { display:none!important; }
+
+        /* تصميم المعاينة الجديد: الاختيار في مساحة واضحة والملخص ثابت بجانبه. */
+        .preview-kicker { color:#60a5fa; font-size:11px; font-weight:900; letter-spacing:.04em; }
+        .topbar-copy { display:grid; gap:4px; }
+        .topbar-actions { display:flex; align-items:center; gap:10px; }
+        .launch-card { position:relative; overflow:hidden; background:linear-gradient(135deg,rgba(29,78,216,.24),rgba(15,23,42,.96) 48%); border-color:#315077; }
+        .launch-card::after { content:""; position:absolute; inset:auto -70px -90px auto; width:210px; height:210px; background:radial-gradient(circle,rgba(37,99,235,.25),transparent 66%); pointer-events:none; }
+        .launch-copy { display:flex; align-items:center; gap:12px; }
+        .launch-icon { display:grid; place-items:center; width:46px; height:46px; flex:0 0 46px; color:#dbeafe; background:#1d4ed8; border:1px solid #60a5fa; border-radius:14px; font-size:22px; }
+        .launch-card .secondary { position:relative; z-index:1; min-width:150px; min-height:46px; font-size:15px; box-shadow:0 10px 24px rgba(5,150,105,.2); }
+        .modal-wrap { padding:10px; }
+        .modal { width:min(1320px,100%); height:min(94vh,920px); max-height:none; overflow:hidden; display:flex; flex-direction:column; border-radius:24px; }
+        .modal-head { flex:0 0 auto; padding:16px 20px; }
+        .modal-head-copy { display:flex; align-items:center; gap:12px; }
+        .modal-head-icon { display:grid; place-items:center; width:44px; height:44px; color:#bfdbfe; background:#1d4ed8; border:1px solid #60a5fa; border-radius:14px; font-size:22px; }
+        .modal-subtitle { color:#94a3b8; font-size:11px; margin-top:4px; }
+        .modal-body { min-height:0; flex:1; padding:0; overflow:hidden; }
+        .builder-layout { display:grid; grid-template-columns:minmax(0,1.75fr) minmax(330px,.75fr); height:100%; min-height:0; }
+        .builder-main { min-width:0; overflow:auto; padding:18px 20px 28px; }
+        .builder-summary { min-width:0; overflow:auto; padding:18px; background:#09111f; border-right:1px solid #263650; }
+        .summary-sticky { display:grid; gap:14px; }
+        .summary-title { display:flex; align-items:flex-start; justify-content:space-between; gap:10px; }
+        .summary-title h3 { margin:0; font-size:17px; }
+        .summary-count { padding:5px 9px; color:#bfdbfe; background:#172554; border:1px solid #1d4ed8; border-radius:999px; font-size:10px; }
+        .quick-guide { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:16px; }
+        .guide-item { display:flex; align-items:center; gap:8px; padding:10px; color:#94a3b8; background:#0b1526; border:1px solid #263650; border-radius:12px; font-size:11px; }
+        .guide-item b { display:grid; place-items:center; width:24px; height:24px; flex:0 0 24px; color:#fff; background:#1e3a5f; border-radius:8px; }
+        .guide-item.current { color:#fff; background:#102a4c; border-color:#2563eb; }
+        .guide-item.done { color:#d1fae5; background:#073426; border-color:#059669; }
+        .flow { display:none; }
+        .step-panel { padding:16px; background:#0b1526; border:1px solid #263650; border-radius:16px; }
+        .step-panel + .step-panel { margin-top:14px; }
+        .step-heading { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:12px; }
+        .step-heading-copy { display:flex; align-items:center; gap:10px; }
+        .step-number { display:grid; place-items:center; width:30px; height:30px; color:#fff; background:#2563eb; border-radius:10px; font-weight:900; }
+        .step-title { margin:0; color:#fff; font-size:15px; }
+        .step-help { margin-top:3px; color:#7f8da3; font-size:10px; }
+        .choice-grid { grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); }
+        .category-choice { min-height:64px; display:flex; align-items:center; justify-content:space-between; gap:8px; padding:12px 14px; }
+        .category-choice > span { margin:0; color:inherit; font-size:inherit; }
+        .category-choice > span > span { margin-top:4px; }
+        .category-choice .category-arrow { color:#64748b; font-size:18px; }
+        .category-choice.active .category-arrow { color:#fff; }
+        .work-choice-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:12px; }
+        .work-card { min-height:0; padding:14px; background:#111c2e; }
+        .work-card-head { margin-bottom:8px!important; }
+        .work-card-title { display:flex; align-items:center; gap:8px; font-size:16px; }
+        .work-icon { display:grid!important; place-items:center; width:30px; height:30px; margin:0!important; color:#bfdbfe!important; background:#172554; border:1px solid #1d4ed8; border-radius:9px; font-size:15px!important; }
+        .work-card-description { min-height:0; }
+        .work-card-state { min-width:auto; }
+        .work-card[data-work-card="full"] { grid-column:1/-1; border-color:#315077; background:linear-gradient(135deg,#101d31,#0d1728); }
+        .full-composition { gap:12px; }
+        .full-part { padding:14px; background:#0a1424; }
+        .full-part strong { display:flex; align-items:center; gap:7px; }
+        .size-selector,.grade-selector,.window-counter,.full-type-selector { gap:7px; }
+        .size-selector button,.grade-selector button,.window-counter button,.full-type-selector button { transition:.16s ease; }
+        .size-selector button:hover,.grade-selector button:hover,.window-counter button:hover,.full-type-selector button:hover { transform:translateY(-1px); border-color:#60a5fa; }
+        .builder-list { max-height:none; }
+        .builder-row { display:block; padding:12px; }
+        .builder-row-title { align-items:flex-start; }
+        .part-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); }
+        .builder-row > .danger { width:100%; margin-top:10px; padding:7px!important; background:#32161d; color:#fca5a5; }
+        .summary-empty { padding:26px 12px; }
+        .price-review-grid { grid-template-columns:1fr; margin-top:0; }
+        .price-review-item:first-child { border-color:#2563eb; background:#0e2140; }
+        .price-review-item:first-child .input { font-size:19px; font-weight:900; text-align:center; }
+        .operation-totals { grid-template-columns:repeat(2,minmax(0,1fr)); margin-top:0; }
+        .operation-total { padding:10px; }
+        .formulas-box { margin-top:0; }
+        .formulas-box summary { cursor:pointer; color:#93c5fd; font-weight:900; }
+        .formulas-box[open] summary { margin-bottom:8px; }
+        .formulas-grid { grid-template-columns:1fr; }
+        .modal-actions { flex:0 0 auto; margin:0; padding:14px 20px; background:#111b2e; border-top:1px solid #2b3951; }
+        .modal-actions .primary { font-size:15px; }
+        .modal-actions-note { display:flex; align-items:center; color:#94a3b8; font-size:10px; }
+        @media(max-width:850px) {
+            .layout { grid-template-columns:1fr; }
+            .products,.option-grid { grid-template-columns:1fr; }
+            .builder-layout { grid-template-columns:1fr; overflow:auto; }
+            .builder-main,.builder-summary { overflow:visible; }
+            .builder-summary { border-right:0; border-top:1px solid #263650; }
+            .work-choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .choice-grid { grid-template-columns:1fr 1fr; }
+            .custom-grid { grid-template-columns:1fr 1fr; }
+            .full-composition { grid-template-columns:1fr; }
+            .preview-grid,.operation-totals { grid-template-columns:1fr 1fr; }
+            .part-metrics { grid-template-columns:1fr 1fr; }
+            .topbar { align-items:flex-start; flex-direction:column; gap:12px; }
+            .badge { width:100%; text-align:center; }
+        }
+        @media(max-width:520px) {
+            .choice-grid,.custom-grid,.price-review-grid,.operation-totals,.part-metrics,.formulas-grid,.cart-totals { grid-template-columns:1fr; }
+            .option-meta { grid-template-columns:1fr; }
+            .modal { height:calc(100vh - 12px); border-radius:16px; }
+            .quick-guide,.work-choice-grid { grid-template-columns:1fr; }
+            .modal-actions { flex-direction:column; }
+            .modal-actions-note { justify-content:center; }
+        }
+
+        /* الشكل المستهدف للتطبيق الفعلي: نافذة سريعة، صغيرة العناصر، ومناسبة للمس. */
+        [data-tooltip] { position:relative; }
+        [data-tooltip]::after {
+            content:attr(data-tooltip); position:absolute; z-index:30; inset:auto 50% calc(100% + 8px) auto;
+            transform:translateX(50%); width:max-content; max-width:240px; padding:8px 10px;
+            color:#e2e8f0; background:#020617; border:1px solid #334155; border-radius:9px;
+            box-shadow:0 12px 30px rgba(0,0,0,.45); font-size:11px; font-weight:500; line-height:1.6;
+            opacity:0; visibility:hidden; pointer-events:none; transition:.15s ease;
+        }
+        [data-tooltip]:hover::after,[data-tooltip]:focus-visible::after,[data-tooltip]:focus-within::after { opacity:1; visibility:visible; }
+        .info-dot { display:inline-grid; place-items:center; width:19px; height:19px; margin-inline-start:5px; color:#93c5fd; background:#172554; border:1px solid #1d4ed8; border-radius:50%; font-size:11px; font-style:normal; }
+        .modal { width:min(980px,100%); height:min(92vh,780px); }
+        .modal-head { padding:12px 14px; }
+        .modal-head-icon { width:36px; height:36px; border-radius:11px; font-size:18px; }
+        .modal-head h2 { font-size:17px; }
+        .modal-subtitle,.quick-guide,.step-help,.work-card-description,.work-card-state,.exclusive-note,.full-source-note,.modal-actions-note { display:none!important; }
+        .builder-layout { grid-template-columns:minmax(0,1fr) 280px; }
+        .builder-main { padding:12px; }
+        .builder-summary { padding:12px; }
+        .step-panel { padding:12px; border-radius:14px; }
+        .step-panel + .step-panel { margin-top:10px; }
+        .step-heading { margin-bottom:9px; }
+        .step-number { width:25px; height:25px; border-radius:8px; font-size:12px; }
+        .step-title { font-size:14px; }
+        .choice-grid { grid-template-columns:repeat(auto-fill,minmax(92px,1fr)); gap:7px; }
+        .category-choice { min-height:44px; justify-content:center; padding:9px 10px; text-align:center; border-radius:11px; }
+        .category-choice > span > span,.category-arrow { display:none!important; }
+        .category-choice b { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+        .work-choice-grid { grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; }
+        .work-card { padding:10px; border-radius:12px; }
+        .work-card[data-work-card="full"] { grid-column:1/-1; }
+        .work-card-head { margin-bottom:6px!important; }
+        .work-card-title { font-size:14px; }
+        .work-icon { width:25px; height:25px; font-size:12px!important; }
+        .control-label { margin:8px 0 5px; font-size:10px; }
+        .size-selector button,.grade-selector button,.window-counter button,.full-type-selector button { min-height:34px; padding:6px 8px; font-size:11px; }
+        .full-composition { grid-template-columns:repeat(3,minmax(0,1fr)); gap:7px; margin-top:8px; }
+        .full-part { padding:9px; border-radius:10px; }
+        .full-part strong { margin-bottom:5px; font-size:13px; }
+        .full-part small { display:none; }
+        .full-type-selector { grid-template-columns:repeat(auto-fit,minmax(58px,1fr)); }
+        .builder-row { padding:10px; align-items:center; }
+        .builder-row-title { margin:0; }
+        .builder-row-title b { font-size:12px; line-height:1.6; }
+        .source-tag,.part-metrics { display:none!important; }
+        .price-review-grid { grid-template-columns:1fr; margin-top:10px; }
+        .price-review-item { padding:10px; }
+        .summary-title h3 { font-size:15px; }
+        .summary-empty { padding:22px 10px; font-size:11px; }
+        .operation-totals,.formulas-box { display:none!important; }
+        .modal-actions { margin:0; padding:10px 12px; }
+        .modal-actions .primary { min-height:46px; }
+        .modal-actions .ghost { min-height:46px; }
+        .cart-cost,.cart-totals,#cartCostRow { display:none!important; }
+        @media(max-width:700px) {
+            .modal-wrap { padding:0; align-items:stretch; }
+            .modal { width:100%; height:100dvh; max-height:none; border:0; border-radius:0; }
+            .modal-body { overflow:auto; }
+            .builder-layout { display:flex; flex-direction:column; height:auto; min-height:100%; }
+            .builder-main,.builder-summary { overflow:visible; }
+            .builder-main { padding:10px; }
+            .builder-summary { padding:10px; border:0; border-top:1px solid #263650; }
+            .choice-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+            .work-choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .full-composition { grid-template-columns:1fr; }
+            .custom-grid { grid-template-columns:1fr 1fr; }
+            .modal-actions { position:sticky; bottom:0; z-index:5; display:grid; grid-template-columns:1fr auto; background:#0e1728; border-top:1px solid #263650; }
+            .modal-actions .primary { order:1; }
+            .modal-actions .ghost { order:2; padding-inline:12px; }
+            [data-tooltip]::after { position:fixed; inset:auto 12px 76px 12px; width:auto; max-width:none; transform:none; text-align:center; }
+        }
+        @media(max-width:390px) {
+            .choice-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+            .work-choice-grid { grid-template-columns:1fr 1fr; }
+            .custom-grid { grid-template-columns:1fr; }
+        }
+    </style>
+</head>
+<body>
+<div class="page">
+    <header class="topbar">
+        <div class="topbar-copy"><span class="preview-kicker">وضع المعاينة</span><div class="title">معاينة بيع التضليل</div><div style="color:#64748b;font-size:12px">واجهة تجريبية لاختيار التضليل دون تنفيذ بيع فعلي.</div></div>
+        <div class="badge">البيانات: <b id="dataStatus" style="color:#fbbf24">جارٍ التحميل...</b></div>
+    </header>
+    <main class="layout">
+        <section class="stack">
+            <div class="card launch-card">
+                <div class="section-head"><div class="launch-copy"><span class="launch-icon">◩</span><div><span class="label">ابدأ من هنا</span><b>تسجيل تضليل بخطوات سريعة</b><div style="color:#94a3b8;font-size:11px;margin-top:5px">النوع ← العمل ← الحجم والدرجة ← السعر</div></div></div><button class="secondary" id="openTint" disabled>تضليل</button></div>
+                <div class="section-head" style="margin-top:18px"><div><span class="label">المنتجات المرتبطة</span><b>منتجات قسم تضليل</b></div></div>
+                <div class="search-row"><input class="input" id="productSearch" placeholder="اكتب اسم المنتج..."><button class="ghost" id="productSearchButton">بحث</button></div>
+                <div class="products" id="realProducts"><div class="cart-empty" style="grid-column:1/-1">جارٍ تحميل منتجات الرول...</div></div>
+            </div>
+            <div class="card">
+                <div class="section-head"><h2>سلة البيع</h2><span id="cartCount" style="color:#94a3b8;font-size:12px">0 عناصر</span></div>
+                <div id="cart"></div>
+            </div>
+        </section>
+        <aside class="stack">
+            <div class="card"><span class="label">أجور اليد</span><input class="input" type="number" value="0"></div>
+            <div class="card"><span class="label">نوع الدفع</span><div class="pay-grid"><button class="pay active">كاش</button><button class="pay">شبكة</button><button class="pay">مختلط</button><button class="pay">آجل</button></div></div>
+            <div class="card summary">
+                <div class="sum-row"><span>المنتجات</span><b id="productsTotal">0.00 ر.س</b></div>
+                <div class="sum-row"><span>الضريبة</span><b>0.00 ر.س</b></div>
+                <div class="sum-row total"><span>الإجمالي</span><b id="finalTotal">0.00 ر.س</b></div>
+                <button class="primary confirm">تأكيد العملية ✓</button>
+            </div>
+        </aside>
+    </main>
+</div>
+
+<div class="modal-wrap" id="tintModal">
+    <div class="modal">
+        <div class="modal-head">
+            <div class="modal-head-copy">
+                <span class="modal-head-icon">◩</span>
+                <div><h2>تضليل</h2></div>
+            </div>
+            <button class="danger" id="closeTint">إغلاق</button>
+        </div>
+
+        <div class="modal-body">
+            <div class="builder-layout">
+                <section class="builder-main">
+                    <div class="flow" id="flowIndicator">
+                        <span class="current">1 نوع التضليل</span><b>←</b><span>2 العمل والحجم والدرجة</span>
+                    </div>
+                    <div class="step-panel">
+                        <div class="step-heading">
+                            <div class="step-heading-copy"><span class="step-number">1</span><h3 class="step-title">نوع التضليل <i class="info-dot" tabindex="0" data-tooltip="تظهر هنا المسميات الموجودة فعليًا في منتجات قسم تضليل.">؟</i></h3></div>
+                        </div>
+                        <div class="choice-grid" id="categoryChoices"></div>
+                    </div>
+
+                    <div class="step-panel hidden" id="workStep">
+                        <div class="step-heading">
+                            <div class="step-heading-copy"><span class="step-number">2</span><h3 class="step-title">العمل المطلوب <i class="info-dot" tabindex="0" data-tooltip="يمكن جمع أمامي وخلفي ودريشة. اختيار كامل يلغي الأعمال الجزئية.">؟</i></h3></div>
+                        </div>
+                        <div class="choice-grid work-choice-grid" id="workChoices"></div>
+                    </div>
+
+                    <div class="step-panel hidden" id="customStep">
+                        <div class="custom-panel" id="customPanel">
+                            <div class="section-head"><div><span class="label" style="margin:0 0 5px">إضافة غير مسجلة</span><b>عمل مخصص</b></div><button class="ghost" id="closeCustom" style="padding:7px 10px">إلغاء</button></div>
+                            <div class="custom-rows" id="customRows"></div>
+                            <div class="custom-actions">
+                                <button class="ghost" type="button" id="addCustomRow">+ سطر مخصص آخر</button>
+                                <button class="secondary" type="button" id="addCustomPart">اعتماد السطور المخصصة</button>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+
+                <aside class="builder-summary">
+                    <div class="summary-sticky">
+                        <div class="summary-title">
+                            <div><span class="preview-kicker">مراجعة مباشرة</span><h3>ملخص العملية</h3></div>
+                            <span class="summary-count" id="partsHint">لم يتم الاختيار</span>
+                        </div>
+                        <div class="builder-list" id="selectedParts"></div>
+
+                        <div class="price-review-grid">
+                            <div class="price-review-item">
+                                <span class="label">السعر النهائي <i class="info-dot" tabindex="0" data-tooltip="يُملأ تلقائيًا من أسعار خيارات التجزئة، ويمكن تعديله قبل الإضافة للسلة.">؟</i></span>
+                                <input class="input" id="salePrice" type="number" value="0" min="1" step="0.01" inputmode="decimal">
+                            </div>
+                        </div>
+                    </div>
+                </aside>
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="primary" id="addTint">إضافة العملية إلى السلة</button>
+            <button class="ghost" id="resetTint">بدء اختيار جديد</button>
+        </div>
+    </div>
+</div>
+<script>
+// تقرأ المعاينة منتجات الرول الحقيقية من قسم «تضليل» فقط مع خيارات التجزئة التابعة لها.
+// نوع التضليل والحجم والدرجة تُستخرج من صيغة الاسم المعتمدة: النوع + الحجم + الدرجة.
+const previewProductsUrl = (() => {
+    const configuredUrl = new URLSearchParams(window.location.search).get('products_url');
+    if (configuredUrl) return new URL(configuredUrl, document.baseURI).toString();
+
+    // احتياط للروابط القديمة المباشرة: نبني المسار بجانب ملف المعاينة.
+    const previewDirectory = window.location.pathname.replace(/tint-sale-preview\.html$/, '');
+    return new URL(`${previewDirectory}accountant/quick-sale/tint-preview-products`, window.location.origin).toString();
+})();
+let categories = [];
+const works = [
+    { id:'full', label:'كامل', description:'تضليل السيارة كاملة' },
+    { id:'front', label:'أمامي', description:'الزجاج الأمامي' },
+    { id:'rear', label:'خلفي', description:'الزجاج الخلفي' },
+    { id:'window', label:'دريشة', description:'حدد عدد الدرايش من 1 إلى 4' },
+];
+let sizes = [];
+let previewProducts = [];
+
+function normalizeArabic(value) {
+    return String(value || '')
+        .trim()
+        .toLowerCase()
+        .replace(/[أإآ]/g, 'ا')
+        .replace(/ى/g, 'ي')
+        .replace(/ة/g, 'ه')
+        .replace(/\s+/g, ' ');
+}
+
+function tintTypeId(label) {
+    return normalizeArabic(label).replace(/\s+/g, '-');
+}
+
+function rebuildTintTypes() {
+    const types = new Map();
+    previewProducts.forEach(product => {
+        if (!product.tintType) return;
+
+        const id = tintTypeId(product.tintType);
+        if (!types.has(id)) {
+            types.set(id, {
+                id,
+                label:product.tintType,
+                description:`${previewProducts.filter(item => item.tintTypeId === id).length} منتج متوفر`,
+            });
+        }
+    });
+    categories = [...types.values()];
+}
+
+function parseTintIdentity(name) {
+    const original = String(name || '').trim().replace(/\s+/g, ' ');
+    const tokens = original.split(' ').filter(Boolean);
+    if (tokens.length < 3) return { tintType:null, size:null, sizeLabel:null, grade:null };
+
+    const knownSizeIndex = tokens.findIndex(token => ['كبير', 'صغير'].includes(token));
+    const knownGradeIndex = tokens.findIndex(token => token === 'شفاف' || /^0?[1-3]$/.test(token));
+    let sizeIndex = knownSizeIndex;
+    let gradeIndex = knownGradeIndex;
+
+    // الأسماء الجديدة تُجمع دائمًا بالترتيب: الصنع، الحجم، الدرجة، ثم «أخرى».
+    // عند استخدام حجم أو درجة خاصة بالمتجر نعتمد موضعهما بدل قائمة ثابتة.
+    if (sizeIndex < 0 || gradeIndex < 0) {
+        sizeIndex = 1;
+        gradeIndex = 2;
+    }
+
+    const sizeLabel = tokens[sizeIndex] || null;
+    const rawGrade = tokens[gradeIndex] || null;
+    const grade = rawGrade;
+    const typeParts = tokens.filter((token, index) => index !== sizeIndex && index !== gradeIndex);
+    const tintType = typeParts.join(' ').trim() || null;
+
+    return {
+        tintType,
+        size:sizeLabel ? tintTypeId(sizeLabel) : null,
+        sizeLabel,
+        grade,
+    };
+}
+
+function inferTintType(name) { return parseTintIdentity(name).tintType; }
+function inferSize(name) { return parseTintIdentity(name).size; }
+function inferGrade(name) { return parseTintIdentity(name).grade; }
+
+function rebuildSizes() {
+    const available = new Map();
+    previewProducts.forEach(product => {
+        if (product.size && product.sizeLabel && !available.has(product.size)) {
+            available.set(product.size, { id:product.size, label:product.sizeLabel });
+        }
+    });
+    sizes = [...available.values()];
+}
+
+function inferWork(label) {
+    const normalized = normalizeArabic(label);
+    if (normalized.includes('كامل')) return 'full';
+    if (normalized.includes('امامي')) return 'front';
+    if (normalized.includes('خلفي')) return 'rear';
+    if (normalized.includes('دريش')) return 'window';
+    return null;
+}
+
+function mapProduct(product) {
+    const identity = parseTintIdentity(product.name);
+    return {
+        id:String(product.id),
+        name:product.name,
+        tintType:identity.tintType,
+        tintTypeId:tintTypeId(identity.tintType || ''),
+        size:identity.size,
+        sizeLabel:identity.sizeLabel,
+        grade:identity.grade,
+        price:Number(product.price || 0),
+        costPrice:Number(product.cost_price || 0),
+        length:Number(product.roll_length || 0),
+        stock:Number(product.quantity || 0),
+        waste:Number(product.waste_percentage || 0),
+        fractions:(product.fractions || []).map(option => ({
+            id:option.id,
+            work:inferWork(option.option_label),
+            label:option.option_label,
+            meters:Number(option.deduction_value || 0),
+            price:Number(option.price || 0),
+        })),
+    };
+}
+
+let selectedCategory = null;
+let workSelections = {};
+let windowCount = 1;
+let selectedParts = [];
+let cart = [];
+const modal = document.getElementById('tintModal');
+
+function money(value) { return Number(value || 0).toFixed(2) + ' ر.س'; }
+function partCalculation(part) {
+    const quantity = Number(part.qty || 0);
+    const metersPerItem = Number(part.meters || 0);
+    const usedMeters = metersPerItem * quantity;
+    const wasteRate = Number(part.product.waste || 0);
+    const wasteMeters = usedMeters * wasteRate / 100;
+    const deductedMeters = usedMeters + wasteMeters;
+    const rollLength = Number(part.product.length || 0);
+    const rollCost = Number(part.product.costPrice || 0);
+    const costPerMeter = rollLength > 0 ? rollCost / rollLength : 0;
+    const usageCost = usedMeters * costPerMeter;
+    const wasteCost = wasteMeters * costPerMeter;
+    const totalCost = usageCost + wasteCost;
+    const salePrice = Number(part.unitPrice || 0) * quantity;
+
+    return {
+        quantity,
+        metersPerItem,
+        usedMeters,
+        wasteRate,
+        wasteMeters,
+        deductedMeters,
+        rollLength,
+        rollCost,
+        costPerMeter,
+        usageCost,
+        wasteCost,
+        totalCost,
+        salePrice,
+    };
+}
+function partBaseMaterialCost(part) { return partCalculation(part).usageCost; }
+function partMaterialCost(part) { return partCalculation(part).totalCost; }
+function escapeHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+function categoryById(id) { return categories.find(category => category.id === id); }
+function workById(id) { return works.find(work => work.id === id); }
+function sizeById(id) { return sizes.find(size => size.id === id); }
+function productById(id) { return previewProducts.find(product => product.id === id); }
+function productsForCategory() { return previewProducts.filter(product => product.tintTypeId === selectedCategory); }
+function productsForWork(work) {
+    return productsForCategory().filter(product => product.fractions.some(option => option.work === work));
+}
+function availableSizesForWork(work) {
+    const available = new Set(productsForWork(work).map(product => product.size).filter(Boolean));
+    return sizes.filter(size => available.has(size.id));
+}
+function gradesForWorkAndSize(work, size) {
+    return [...new Set(productsForWork(work)
+        .filter(product => product.size === size)
+        .map(product => product.grade)
+        .filter(Boolean))];
+}
+function selectionKey(work) { return work; }
+function sizeIdByLabel(label) {
+    const normalized = normalizeArabic(label);
+    return sizes.find(size => normalizeArabic(size.label) === normalized)?.id || null;
+}
+const fullComponents = [
+    { id:'front', work:'front', label:'الأمامي', description:'يأخذ استهلاك وسعر خيار «أمامي»', preferredSize:'كبير', qty:1 },
+    { id:'rear', work:'rear', label:'الخلفي', description:'يأخذ استهلاك وسعر خيار «خلفي»', preferredSize:'كبير', qty:1 },
+    { id:'sides', work:'window', label:'الجوانب والدرايش', description:'يأخذ خيار «دريشة» لأربع درايش', preferredSize:'صغير', qty:4 },
+];
+function fullComponentById(id) { return fullComponents.find(component => component.id === id); }
+function productsForTintTypeAndWork(categoryId, work) {
+    return previewProducts.filter(product => product.tintTypeId === categoryId && product.fractions.some(option => option.work === work));
+}
+function fullTypesForWork(work) {
+    const available = new Set(previewProducts.filter(product => product.fractions.some(option => option.work === work)).map(product => product.tintTypeId));
+    return categories.filter(category => available.has(category.id));
+}
+function fullSizesForComponent(componentId, categoryId) {
+    const component = fullComponentById(componentId);
+    if (!component || !categoryId) return [];
+    const available = new Set(productsForTintTypeAndWork(categoryId, component.work).map(product => product.size).filter(Boolean));
+    return sizes.filter(size => available.has(size.id));
+}
+function fullGradesForComponent(componentId, categoryId, size) {
+    const component = fullComponentById(componentId);
+    if (!component || !categoryId || !size) return [];
+    return [...new Set(productsForTintTypeAndWork(categoryId, component.work)
+        .filter(product => product.size === size)
+        .map(product => product.grade)
+        .filter(Boolean))];
+}
+
+function selectedConfigurations() {
+    return Object.entries(workSelections)
+        .filter(([work, selection]) => work !== 'full' && selection.size && selection.grade)
+        .map(([work, selection]) => ({ work, ownerWork:work, size:selection.size, grade:selection.grade }));
+}
+
+function renderCategories() {
+    const box = document.getElementById('categoryChoices');
+    box.innerHTML = categories.length ? categories.map(category => `
+        <button class="choice category-choice ${selectedCategory === category.id ? 'active' : ''}" data-category="${escapeHtml(category.id)}" data-tooltip="${escapeHtml(`${category.label} — ${category.description || 'نوع تضليل متوفر'}`)}" aria-label="${escapeHtml(category.label)}">
+            <span><b>${escapeHtml(category.label)}</b></span>
+        </button>
+    `).join('') : '<div class="cart-empty" style="grid-column:1/-1">لا توجد أنواع تضليل مكتملة الاسم. استخدم الصيغة: النوع + الحجم + الدرجة.</div>';
+    box.querySelectorAll('[data-category]').forEach(button => button.onclick = () => selectCategory(button.dataset.category));
+}
+
+function workIcon(workId) {
+    return { full:'▦', front:'▰', rear:'▱', window:'▥' }[workId] || '•';
+}
+
+function renderWorks() {
+    const box = document.getElementById('workChoices');
+    box.innerHTML = works.map(work => {
+        const selection = workSelections[work.id] || null;
+        if (work.id === 'full') {
+            const fullSelection = selection || {};
+            const isActive = fullComponents.some(component => fullSelection[component.id]?.categoryId);
+            const componentCards = fullComponents.map(component => {
+                const componentSelection = fullSelection[component.id] || {};
+                const availableTypes = fullTypesForWork(component.work);
+                const availableSizes = fullSizesForComponent(component.id, componentSelection.categoryId);
+                const availableGrades = fullGradesForComponent(component.id, componentSelection.categoryId, componentSelection.size);
+                return `
+                    <span class="full-part">
+                        <strong>${escapeHtml(component.label)} <i class="info-dot" tabindex="0" data-tooltip="${escapeHtml(component.description)} — المقاس المعتاد: ${escapeHtml(component.preferredSize)}">؟</i></strong>
+                        <span class="control-label">النوع</span>
+                        <span class="full-type-selector">
+                            ${availableTypes.length ? availableTypes.map(category => `<button type="button" class="${componentSelection.categoryId === category.id ? 'active' : ''}" data-full-type="${component.id}:${escapeHtml(category.id)}">${escapeHtml(category.label)}</button>`).join('') : '<em style="color:#f87171;font-size:11px">لا يوجد منتج بخيار التجزئة المطلوب</em>'}
+                        </span>
+                        ${componentSelection.categoryId ? `
+                            <span class="control-label">الحجم</span>
+                            <span class="size-selector">
+                                ${availableSizes.map(size => `<button type="button" class="${componentSelection.size === size.id ? 'active' : ''}" data-full-size="${component.id}:${escapeHtml(size.id)}">${escapeHtml(size.label)}</button>`).join('') || '<em style="color:#f87171;font-size:11px">لا يوجد حجم متاح</em>'}
+                            </span>
+                        ` : ''}
+                        ${componentSelection.size ? `
+                            <span class="control-label">الدرجة</span>
+                            <span class="grade-selector">
+                                ${availableGrades.map(grade => `<button type="button" class="${componentSelection.grade === grade ? 'active' : ''}" data-full-grade="${component.id}:${escapeHtml(grade)}">${escapeHtml(grade)}</button>`).join('') || '<em style="color:#f87171;font-size:11px">لا توجد درجة متاحة</em>'}
+                            </span>
+                        ` : ''}
+                    </span>`;
+            }).join('');
+            return `
+                <div class="choice work-card ${isActive ? 'active' : ''}" data-work-card="full">
+                    <span class="work-card-head">
+                        <span><b class="work-card-title" data-tooltip="الأمامي والخلفي والجوانب تُحدد بصورة مستقلة."><i class="work-icon">${workIcon(work.id)}</i>${work.label}<i class="info-dot" tabindex="0">؟</i></b></span>
+                    </span>
+                    <span class="full-composition">${componentCards}</span>
+                </div>
+            `;
+        }
+
+        const availableSizes = availableSizesForWork(work.id);
+        const availableGrades = selection ? gradesForWorkAndSize(work.id, selection.size) : [];
+        return `
+            <div class="choice work-card ${selection ? 'active' : ''}" data-work-card="${work.id}">
+                <span class="work-card-head">
+                    <span><b class="work-card-title" data-tooltip="${escapeHtml(work.description)}"><i class="work-icon">${workIcon(work.id)}</i>${work.label}<i class="info-dot" tabindex="0">؟</i></b></span>
+                </span>
+                ${work.id === 'window' ? `<span class="control-label">العدد</span><span class="window-counter">${[1,2,3,4].map(count => `<button type="button" class="${windowCount === count ? 'active' : ''}" data-window-count="${count}">${count}</button>`).join('')}</span>` : ''}
+                <span class="control-label">الحجم</span>
+                <span class="size-selector">
+                    ${availableSizes.length
+                        ? availableSizes.map(size => `<button type="button" class="${selection?.size === size.id ? 'active' : ''}" data-work-size="${work.id}:${size.id}">${escapeHtml(size.label)}</button>`).join('')
+                        : '<em style="color:#f87171;font-size:11px">لا يوجد منتج بهذا العمل</em>'}
+                </span>
+                ${selection ? `
+                    <span class="size-grade-block">
+                        <span class="size-grade-title"><b>الدرجة</b><em>${escapeHtml(selection.grade || 'اختر')}</em></span>
+                        <span class="grade-selector">
+                            ${availableGrades.length
+                                ? availableGrades.map(grade => `<button type="button" class="${selection.grade === grade ? 'active' : ''}" data-grade="${work.id}:${grade}">${escapeHtml(grade)}</button>`).join('')
+                                : '<em style="color:#f87171;font-size:11px">لا توجد درجة متاحة لهذا الحجم</em>'}
+                        </span>
+                    </span>
+                ` : ''}
+            </div>
+        `;
+    }).join('') + `<button class="choice add-choice" id="openAdditional" data-tooltip="لعمل غير موجود ضمن كامل أو أمامي أو خلفي أو دريشة."><b>إضافة +</b></button>`;
+
+    box.querySelectorAll('[data-work-size]').forEach(button => button.onclick = () => {
+        const [work, size] = button.dataset.workSize.split(':');
+        toggleWorkSize(work, size);
+    });
+    box.querySelectorAll('[data-grade]').forEach(button => button.onclick = () => {
+        const [work, grade] = button.dataset.grade.split(':');
+        selectGrade(work, grade);
+    });
+    box.querySelectorAll('[data-full-type]').forEach(button => button.onclick = () => {
+        const [component, categoryId] = button.dataset.fullType.split(':');
+        selectFullType(component, categoryId);
+    });
+    box.querySelectorAll('[data-full-size]').forEach(button => button.onclick = () => {
+        const [component, size] = button.dataset.fullSize.split(':');
+        selectFullSize(component, size);
+    });
+    box.querySelectorAll('[data-full-grade]').forEach(button => button.onclick = () => {
+        const [component, grade] = button.dataset.fullGrade.split(':');
+        selectFullGrade(component, grade);
+    });
+    box.querySelectorAll('[data-window-count]').forEach(button => button.onclick = () => setWindowCount(Number(button.dataset.windowCount)));
+    document.getElementById('openAdditional').onclick = openCustomPanel;
+}
+
+function selectCategory(id) {
+    selectedCategory = id;
+    workSelections = {};
+    selectedParts = [];
+    windowCount = 1;
+    document.getElementById('workStep').classList.remove('hidden');
+    closeCustomPanel();
+    renderCategories();
+    renderWorks();
+    renderSelectedParts();
+    updateFlow(2);
+}
+
+function toggleWorkSize(work, size) {
+    if (!availableSizesForWork(work).some(item => item.id === size)) return;
+    const current = workSelections[work];
+    const isSameSize = current?.size === size;
+
+    if (!isSameSize && workSelections.full) {
+        delete workSelections.full;
+        selectedParts = selectedParts.filter(part => part.custom || part.ownerWork !== 'full');
+    }
+
+    if (isSameSize) {
+        delete workSelections[work];
+    } else {
+        workSelections[work] = { size, grade:null };
+    }
+    selectedParts = selectedParts.filter(part => part.custom || part.ownerWork !== work);
+    renderWorks();
+    syncAutomaticPricing();
+    renderSelectedParts();
+}
+
+function selectGrade(work, grade) {
+    const selection = workSelections[work];
+    if (!selection || !gradesForWorkAndSize(work, selection.size).includes(grade)) return;
+
+    if (workSelections.full) {
+        delete workSelections.full;
+        selectedParts = selectedParts.filter(part => part.custom || part.ownerWork !== 'full');
+    }
+    workSelections[work].grade = grade;
+    selectedParts = selectedParts.filter(part => part.custom || part.ownerWork !== work);
+    renderWorks();
+    syncAutomaticPricing();
+    renderSelectedParts();
+}
+
+function ensureFullSelection() {
+    if (!workSelections.full) workSelections = { full:{} };
+    return workSelections.full;
+}
+function clearPartialWorksForFull() {
+    Object.keys(workSelections).forEach(work => { if (work !== 'full') delete workSelections[work]; });
+    selectedParts = selectedParts.filter(part => part.custom || part.ownerWork === 'full');
+}
+function selectFullType(componentId, categoryId) {
+    const component = fullComponentById(componentId);
+    if (!component || !fullTypesForWork(component.work).some(category => category.id === categoryId)) return;
+    clearPartialWorksForFull();
+    const full = ensureFullSelection();
+    const current = full[componentId] || {};
+    if (current.categoryId === categoryId) {
+        delete full[componentId];
+    } else {
+        const availableSizes = fullSizesForComponent(componentId, categoryId);
+        const preferred = availableSizes.find(size => normalizeArabic(size.label) === normalizeArabic(component.preferredSize));
+        full[componentId] = { categoryId, size:(preferred || availableSizes[0])?.id || null, grade:null };
+    }
+    if (!Object.keys(full).length) delete workSelections.full;
+    renderWorks(); syncAutomaticPricing(); renderSelectedParts();
+}
+function selectFullSize(componentId, size) {
+    const full = workSelections.full;
+    const selection = full?.[componentId];
+    if (!selection || !fullSizesForComponent(componentId, selection.categoryId).some(item => item.id === size)) return;
+    selection.size = selection.size === size ? null : size;
+    selection.grade = null;
+    renderWorks(); syncAutomaticPricing(); renderSelectedParts();
+}
+function selectFullGrade(componentId, grade) {
+    const full = workSelections.full;
+    const selection = full?.[componentId];
+    if (!selection || !fullGradesForComponent(componentId, selection.categoryId, selection.size).includes(grade)) return;
+    selection.grade = selection.grade === grade ? null : grade;
+    renderWorks(); syncAutomaticPricing(); renderSelectedParts();
+}
+
+function setWindowCount(count) {
+    windowCount = Math.min(4, Math.max(1, count));
+    selectedParts = selectedParts.map(part => part.work === 'window' && !part.custom ? { ...part, qty:windowCount } : part);
+    renderWorks();
+    syncAutomaticPricing();
+    renderSelectedParts();
+}
+
+function findAutomaticPrice(configuration) {
+    const candidates = configuration.categoryId
+        ? productsForTintTypeAndWork(configuration.categoryId, configuration.work)
+        : productsForCategory();
+    for (const product of candidates) {
+        if (product.size !== configuration.size || product.grade !== configuration.grade) continue;
+        const option = product.fractions.find(item => item.work === configuration.work);
+        if (option) return { ...configuration, product, option };
+    }
+    return null;
+}
+
+function automaticPart(configuration, keySuffix, displayName = null) {
+    const match = findAutomaticPrice(configuration);
+    if (!match) return null;
+    const { work, ownerWork = work, product, option } = match;
+    return {
+        key:`automatic-${ownerWork}-${keySuffix || work}`,
+        name:displayName || option.label,
+        product,
+        work,
+        ownerWork,
+        size:product.size,
+        selectionKey:selectionKey(ownerWork),
+        meters:option.meters,
+        qty:work === 'window' && ownerWork !== 'full' ? windowCount : 1,
+        unitPrice:option.price,
+        componentId:configuration.componentId || null,
+        custom:false,
+    };
+}
+
+function syncAutomaticPricing() {
+    const customParts = selectedParts.filter(part => part.custom);
+    const automaticParts = selectedConfigurations()
+        .map(configuration => automaticPart(configuration, configuration.work))
+        .filter(Boolean);
+
+    const full = workSelections.full;
+    if (full) {
+        fullComponents.forEach(component => {
+            const selection = full[component.id];
+            if (!selection?.categoryId || !selection.size || !selection.grade) return;
+            const part = automaticPart(
+                { work:component.work, ownerWork:'full', componentId:component.id, categoryId:selection.categoryId, size:selection.size, grade:selection.grade },
+                component.id,
+                `كامل — ${component.label}`
+            );
+            if (part) {
+                part.qty = component.qty;
+                automaticParts.push(part);
+            }
+        });
+    }
+
+
+    selectedParts = [...customParts, ...automaticParts];
+}
+
+let customRowSequence = 0;
+
+function customProductOptions(selected = '') {
+    return productsForCategory().map(product => `<option value="${product.id}" ${String(product.id) === String(selected) ? 'selected' : ''}>${escapeHtml(product.name)}</option>`).join('');
+}
+function customRowMarkup(rowId) {
+    return `
+        <div class="custom-row" data-custom-row="${rowId}">
+            <div class="custom-row-head"><b>السطر المخصص ${rowId}</b><button class="danger" type="button" data-remove-custom-row="${rowId}" style="padding:6px 9px">حذف السطر</button></div>
+            <div class="custom-grid">
+                <div><span class="label">منتج التضليل المستخدم</span><select class="input" data-custom-field="product">${customProductOptions()}</select></div>
+                <div><span class="label">وصف العمل</span><input class="input" data-custom-field="name" placeholder="مثال: جزء من دريشة"></div>
+                <div><span class="label">الاستهلاك بالمتر</span><input class="input" data-custom-field="meters" type="number" min="0.1" step="0.1" value="0.5"></div>
+                <div><span class="label">العدد</span><input class="input" data-custom-field="qty" type="number" min="1" value="1"></div>
+                <div><span class="label">سعر البيع للوحدة</span><input class="input" data-custom-field="price" type="number" min="0" step="0.01" value="0"></div>
+            </div>
+        </div>`;
+}
+function addCustomRow() {
+    customRowSequence += 1;
+    document.getElementById('customRows').insertAdjacentHTML('beforeend', customRowMarkup(customRowSequence));
+    bindCustomRowButtons();
+}
+function bindCustomRowButtons() {
+    document.querySelectorAll('[data-remove-custom-row]').forEach(button => button.onclick = () => {
+        const rows = document.querySelectorAll('[data-custom-row]');
+        if (rows.length === 1) { alert('يجب إبقاء سطر مخصص واحد على الأقل'); return; }
+        document.querySelector(`[data-custom-row="${button.dataset.removeCustomRow}"]`)?.remove();
+    });
+}
+function openCustomPanel() {
+    if (!selectedCategory) { alert('اختر نوع التضليل أولًا'); return; }
+    customRowSequence = 0;
+    document.getElementById('customRows').innerHTML = '';
+    addCustomRow();
+    document.getElementById('customStep').classList.remove('hidden');
+    document.querySelector('[data-custom-field="name"]')?.focus();
+}
+
+function closeCustomPanel() { document.getElementById('customStep').classList.add('hidden'); }
+function addCustomPart() {
+    const rows = [...document.querySelectorAll('[data-custom-row]')];
+    const additions = [];
+    for (const row of rows) {
+        const field = name => row.querySelector(`[data-custom-field="${name}"]`);
+        const product = productById(field('product').value);
+        const name = field('name').value.trim() || 'إضافة مخصصة';
+        const meters = Number(field('meters').value);
+        const qty = Number(field('qty').value);
+        const unitPrice = Number(field('price').value);
+        if (!product || meters <= 0 || qty <= 0 || unitPrice < 0) {
+            alert('راجع المنتج والاستهلاك والعدد وسعر البيع في جميع السطور المخصصة');
+            return;
+        }
+        additions.push({ key:Date.now() + Math.random(), name, product, work:'additional', ownerWork:'additional', meters, qty, unitPrice, custom:true });
+    }
+    selectedParts.push(...additions);
+    closeCustomPanel();
+    renderSelectedParts();
+}
+
+function removePart(key) {
+    const part = selectedParts.find(item => String(item.key) === String(key));
+    if (part && !part.custom) {
+        if (part.ownerWork === 'full' && part.componentId && workSelections.full) {
+            delete workSelections.full[part.componentId];
+            if (!Object.keys(workSelections.full).length) delete workSelections.full;
+        } else {
+            delete workSelections[part.ownerWork || part.work];
+        }
+        syncAutomaticPricing();
+        renderWorks();
+    } else {
+        selectedParts = selectedParts.filter(item => String(item.key) !== String(key));
+    }
+    renderSelectedParts();
+}
+
+function renderSelectedParts() {
+    const box = document.getElementById('selectedParts');
+    box.innerHTML = selectedParts.length ? selectedParts.map(part => {
+        const calculation = partCalculation(part);
+        return `
+            <div class="builder-row">
+                <div class="builder-row-content">
+                    <div class="builder-row-title">
+                        <b>${escapeHtml(part.name)} — ${escapeHtml(part.product.name)}${calculation.quantity > 1 ? ` × ${calculation.quantity}` : ''}</b>
+                        <span class="cart-price">${money(calculation.salePrice)}</span>
+                    </div>
+                </div>
+                <button class="danger" data-remove="${part.key}" style="padding:7px 10px" aria-label="حذف ${escapeHtml(part.name)}">حذف</button>
+            </div>
+        `;
+    }).join('') : '<div class="cart-empty summary-empty">اختر نوع التضليل والعمل لإضافتهما هنا.</div>';
+
+    box.querySelectorAll('[data-remove]').forEach(button => button.onclick = () => removePart(button.dataset.remove));
+
+    const totalSalePrice = selectedParts.reduce((sum, part) => sum + partCalculation(part).salePrice, 0);
+    document.getElementById('partsHint').textContent = selectedParts.length
+        ? `${selectedParts.length} ${selectedParts.length === 1 ? 'اختيار' : 'اختيارات'}`
+        : 'لا يوجد اختيار';
+    document.getElementById('salePrice').value = totalSalePrice > 0 ? totalSalePrice.toFixed(2) : 0;
+    updateFlow(selectedParts.length ? 3 : (selectedCategory ? 2 : 1));
+}
+
+function updateFlow(step) {
+    document.querySelectorAll('#flowIndicator span').forEach((item, index) => {
+        item.classList.toggle('done', index + 1 < step);
+        item.classList.toggle('current', index + 1 === step);
+    });
+    document.querySelectorAll('[data-guide-step]').forEach(item => {
+        const itemStep = Number(item.dataset.guideStep);
+        item.classList.toggle('done', itemStep < step);
+        item.classList.toggle('current', itemStep === step);
+    });
+}
+function resetBuilder() {
+    selectedCategory = null; workSelections = {}; selectedParts = []; windowCount = 1;
+    document.getElementById('workStep').classList.add('hidden');
+    closeCustomPanel(); renderCategories(); renderWorks(); renderSelectedParts(); updateFlow(1);
+}
+function renderCart() {
+    const box = document.getElementById('cart');
+    box.innerHTML = cart.length ? cart.map((item, index) => {
+        const details = item.parts.map(part => {
+            const calculation = partCalculation(part);
+            return `${escapeHtml(part.name)}: ${escapeHtml(part.product.name)}${calculation.quantity > 1 ? ` × ${calculation.quantity}` : ''}`;
+        }).join('<br>');
+        return `
+            <div class="cart-item">
+                <div class="cart-item-top">
+                    <div class="builder-row-content">
+                        <b>تضليل ${escapeHtml(item.category)}</b>
+                        <div class="cart-meta">${details}</div>
+                    </div>
+                    <div><div class="cart-price">${money(item.price)}</div><button class="danger" style="padding:6px 9px;margin-top:9px" onclick="removeCartItem(${index})">حذف</button></div>
+                </div>
+            </div>`;
+    }).join('') : '<div class="cart-empty">لم تتم إضافة منتجات بعد.</div>';
+    const total = cart.reduce((sum, item) => sum + item.price, 0);
+    document.getElementById('cartCount').textContent = `${cart.length} عناصر`;
+    document.getElementById('productsTotal').textContent = money(total);
+    document.getElementById('finalTotal').textContent = money(total);
+}
+
+window.removeCartItem = index => { cart.splice(index, 1); renderCart(); };
+document.getElementById('openTint').onclick = () => { modal.classList.add('open'); resetBuilder(); };
+document.getElementById('closeTint').onclick = () => modal.classList.remove('open');
+modal.onclick = event => { if (event.target === modal) modal.classList.remove('open'); };
+document.getElementById('closeCustom').onclick = closeCustomPanel;
+document.getElementById('addCustomRow').onclick = addCustomRow;
+document.getElementById('addCustomPart').onclick = addCustomPart;
+document.getElementById('resetTint').onclick = resetBuilder;
+document.getElementById('addTint').onclick = () => {
+    const price = Number(document.getElementById('salePrice').value);
+    if (!selectedCategory) { alert('اختر نوع التضليل أولًا'); return; }
+    if (workSelections.full) {
+        const missingComponent = fullComponents.find(component => {
+            const selection = workSelections.full[component.id];
+            return !selection?.categoryId || !selection.size || !selection.grade;
+        });
+        if (missingComponent) {
+            alert(`أكمل نوع وحجم ودرجة ${missingComponent.label} في التضليل الكامل`);
+            return;
+        }
+    }
+    if (!selectedParts.length) { alert('اختر عملًا واحدًا على الأقل'); return; }
+    if (price <= 0) { alert('أدخل السعر النهائي'); return; }
+    const usedTypes = [...new Set(selectedParts.map(part => part.product.tintType).filter(Boolean))];
+    const operationLabel = usedTypes.length ? usedTypes.join(' / ') : categoryById(selectedCategory).label;
+    cart.push({ category:operationLabel, parts:selectedParts.map(part => ({ ...part })), price });
+    renderCart(); modal.classList.remove('open');
+};
+document.querySelectorAll('.pay').forEach(button => button.onclick = () => {
+    document.querySelectorAll('.pay').forEach(item => item.classList.remove('active'));
+    button.classList.add('active');
+});
+function renderRealProducts(search = '') {
+    const box = document.getElementById('realProducts');
+    const term = normalizeArabic(search);
+    const products = previewProducts.filter(product => !term || normalizeArabic(product.name).includes(term));
+    box.innerHTML = products.length ? products.map(product => `
+        <div class="product">
+            <div><b>${escapeHtml(product.name)}</b><span class="stock">المتوفر: ${product.stock.toFixed(2)} متر — ${product.fractions.length} خيارات تجزئة${product.tintType && product.size && product.grade ? ` — النوع: ${escapeHtml(product.tintType)}` : ' — يحتاج اسمًا بصيغة النوع + الحجم + الدرجة'}</span></div>
+            <span class="price">${money(product.price)}</span>
+        </div>
+    `).join('') : '<div class="cart-empty" style="grid-column:1/-1">لا توجد منتجات رول مطابقة.</div>';
+}
+
+async function loadPreviewProducts() {
+    const status = document.getElementById('dataStatus');
+    try {
+        const response = await fetch(previewProductsUrl, {
+            headers:{ 'Accept':'application/json' },
+            credentials:'same-origin',
+        });
+        if (response.redirected && /\/login(?:\?|$)/.test(new URL(response.url).pathname)) {
+            throw new Error('انتهت جلسة المحاسب. سجل الدخول ثم افتح المعاينة من شاشة البيع السريع.');
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!response.ok) {
+            let message = `فشل طلب البيانات (HTTP ${response.status})`;
+            if (contentType.includes('application/json')) {
+                const errorPayload = await response.json();
+                message = errorPayload.message || message;
+            }
+            throw new Error(message);
+        }
+        if (!contentType.includes('application/json')) {
+            throw new Error('عاد الخادم بصفحة بدل بيانات المنتجات. افتح المعاينة من زر شاشة البيع السريع وتأكد من تحديث مسارات Laravel.');
+        }
+
+        const payload = await response.json();
+        previewProducts = (payload.products || []).map(mapProduct);
+        rebuildSizes();
+        rebuildTintTypes();
+        const mappedProducts = previewProducts.filter(product => product.tintType && product.size && product.grade).length;
+        status.textContent = `${previewProducts.length} منتج من قسم تضليل — ${categories.length} نوع — ${mappedProducts} جاهز`;
+        status.style.color = '#34d399';
+        document.getElementById('openTint').disabled = previewProducts.length === 0;
+        renderRealProducts();
+        renderCategories();
+        renderWorks();
+        renderSelectedParts();
+        renderCart();
+        if (new URLSearchParams(window.location.search).get('auto_open') === '1') {
+            modal.classList.add('open');
+            resetBuilder();
+        }
+    } catch (error) {
+        console.error('تعذر تحميل منتجات المعاينة', error);
+        const errorMessage = error?.message || 'تعذر تحميل بيانات منتجات التضليل.';
+        status.textContent = `تعذر تحميل البيانات — ${errorMessage}`;
+        status.style.color = '#f87171';
+        document.getElementById('openTint').disabled = true;
+        document.getElementById('realProducts').innerHTML = `<div class="cart-empty" style="grid-column:1/-1">${escapeHtml(errorMessage)}</div>`;
+    }
+}
+
+const productSearch = document.getElementById('productSearch');
+document.getElementById('productSearchButton').onclick = () => renderRealProducts(productSearch.value);
+productSearch.addEventListener('input', () => renderRealProducts(productSearch.value));
+
+renderCategories(); renderWorks(); renderSelectedParts(); renderCart(); loadPreviewProducts();
+</script>
+</body>
+</html>
