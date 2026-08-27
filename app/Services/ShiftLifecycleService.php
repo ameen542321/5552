@@ -210,6 +210,25 @@ class ShiftLifecycleService
             ->all();
     }
 
+    /**
+     * الأيام المتاحة لتسجيل عملية جديدة: يوم العمل الجاري، وأي يوم سابق
+     * ما زال عدد شفتاته المطلوبة غير مكتمل ولم يكن المتجر متوقفًا فيه.
+     */
+    public function openBusinessDates(Store|int $store, ?Carbon $operationTime = null): array
+    {
+        $store = $store instanceof Store ? $store : Store::findOrFail($store);
+        $operationTime ??= now();
+        $currentBusinessDate = $this->currentShiftContext($store, $operationTime)['business_date'];
+
+        return collect($this->missingBusinessDates($store->id, $operationTime))
+            ->push($currentBusinessDate)
+            ->filter()
+            ->unique()
+            ->sort()
+            ->values()
+            ->all();
+    }
+
     private function inactiveBusinessDates(Store $store, Carbon $startDate, Carbon $endDate)
     {
         $statusBeforeStart = Log::query()

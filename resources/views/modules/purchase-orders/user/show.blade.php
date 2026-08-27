@@ -1305,7 +1305,14 @@
             <section class="ui-card p-5 space-y-4">
                 <label class="block">
                     <span class="mb-2 flex items-center gap-2 font-bold ui-title">تاريخ الاعتماد وإضافة المخزون <x-ui.help title="تاريخ الاعتماد" body="تُسجل حركة التوريد وحفظ مشتريات المالك في هذا التاريخ. التاريخ الافتراضي هو يوم عمل المتجر الحالي." /></span>
-                    <input type="date" name="business_date" value="{{ old('business_date', $currentBusinessDate) }}" required class="ui-input">
+                    <select name="business_date" required class="ui-input">
+                        @foreach(($openBusinessDates ?? [$currentBusinessDate]) as $openBusinessDateOption)
+                            <option value="{{ $openBusinessDateOption }}" @selected(old('business_date', $currentBusinessDate) === $openBusinessDateOption)>
+                                {{ $openBusinessDateOption }}{{ $openBusinessDateOption === $currentBusinessDate ? ' — يوم العمل الجاري' : ' — لم يكتمل إغلاقه' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span class="mt-2 block ui-text-soft">يمكن اختيار يوم سابق ما دام إغلاق شفتاته لم يكتمل. وقت الاعتماد الفعلي سيبقى محفوظًا للمراجعة.</span>
                 </label>
             <div class="flex items-start gap-4">
                 <div>

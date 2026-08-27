@@ -118,7 +118,9 @@ class StorePurchaseOrderController extends Controller
         $categories = Category::where('store_id', $store->id)->orderBy('name')->get(['id', 'name']);
         $ownerPurchaseCategoryId = optional($categories->first(fn (Category $category) => trim($category->name) === 'مشتريات المالك'))->id;
         $whatsappText = $this->buildWhatsappText($order);
-        $currentBusinessDate = app(ShiftLifecycleService::class)->currentShiftContext($store->id)['business_date'];
+        $shiftLifecycle = app(ShiftLifecycleService::class);
+        $currentBusinessDate = $shiftLifecycle->currentShiftContext($store->id)['business_date'];
+        $openBusinessDates = $shiftLifecycle->openBusinessDates($store);
         $technicalSupportSession = app(SupportSessionService::class)->active(request());
         $receiptAccountantName = $order->accountant?->name;
         if (! $receiptAccountantName && $order->receipt_actor_type === 'accountant' && $order->receipt_actor_id) {
@@ -127,7 +129,7 @@ class StorePurchaseOrderController extends Controller
                 ->value('name');
         }
 
-        return view('modules.purchase-orders.user.show', compact('store', 'order', 'products', 'categories', 'ownerPurchaseCategoryId', 'whatsappText', 'currentBusinessDate', 'technicalSupportSession', 'receiptAccountantName'));
+        return view('modules.purchase-orders.user.show', compact('store', 'order', 'products', 'categories', 'ownerPurchaseCategoryId', 'whatsappText', 'currentBusinessDate', 'openBusinessDates', 'technicalSupportSession', 'receiptAccountantName'));
     }
 
     /**
@@ -495,11 +497,13 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         $validated = $request->validate([
             'business_date' => ['nullable', 'date_format:Y-m-d'],
         ]);
-        $openBusinessDate = app(ShiftLifecycleService::class)->currentShiftContext($store->id)['business_date'];
+        $shiftLifecycle = app(ShiftLifecycleService::class);
+        $openBusinessDate = $shiftLifecycle->currentShiftContext($store->id)['business_date'];
+        $openBusinessDates = $shiftLifecycle->openBusinessDates($store);
         $businessDate = $validated['business_date'] ?? $openBusinessDate;
-        if ($businessDate !== $openBusinessDate) {
+        if (! in_array($businessDate, $openBusinessDates, true)) {
             throw \Illuminate\Validation\ValidationException::withMessages([
-                'business_date' => 'لا يمكن اعتماد الطلبية في فترة مغلقة. اختر اليوم المفتوح: '.$openBusinessDate.'.',
+                'business_date' => 'لا يمكن اعتماد الطلبية في هذا اليوم لأنه مقفل أو غير متاح. اختر أحد أيام العمل المفتوحة: '.implode('، ', $openBusinessDates).'.',
             ]);
         }
         $this->orders->approve($order, auth('web')->user(), $businessDate);

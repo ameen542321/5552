@@ -9,12 +9,56 @@ use App\Models\Store;
 use App\Models\User;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrder;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrderItem;
+use App\Services\ShiftLifecycleService;
+use Carbon\Carbon;
 use Tests\Concerns\RefreshDatabase;
 use Tests\TestCase;
 
 class PurchaseOrderInventoryReviewSecurityTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_unclosed_previous_business_date_is_available_for_inventory_approval(): void
+    {
+        Carbon::setTestNow('2026-08-28 12:00:00');
+        [$owner, $store] = $this->ownerStoreAndAccountant();
+        $store->forceFill(['created_at' => Carbon::parse('2026-08-20')])->saveQuietly();
+
+        $this->assertContains('2026-08-21', app(ShiftLifecycleService::class)->openBusinessDates($store));
+
+        $order = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'status' => 'received',
+            'workflow_status' => 'pending_inventory_approval',
+            'received_at' => now(),
+        ]);
+        StorePurchaseOrderItem::create([
+            'store_purchase_order_id' => $order->id,
+            'custom_product_name' => 'مشتريات مالك مؤجلة',
+            'quantity_requested' => 1,
+            'quantity_received' => 1,
+            'unit_type' => 'unit',
+            'cost_price_at_order' => 10,
+            'cost_price_at_receipt' => 10,
+            'add_to_owner_purchases' => true,
+        ]);
+
+        $this->actingAs($owner)
+            ->get(route('user.stores.purchase-orders.show', [$store, $order]))
+            ->assertOk()
+            ->assertSee('value="2026-08-21"', false)
+            ->assertSee('لم يكتمل إغلاقه');
+
+        $this->actingAs($owner)->post(route('user.stores.purchase-orders.approve', [$store, $order]), [
+            'business_date' => '2026-08-21',
+        ])->assertRedirect(route('user.stores.purchase-orders.index', $store));
+
+        $approvedOrder = $order->fresh();
+        $this->assertSame('approved', $approvedOrder->status);
+        $this->assertSame('2026-08-21', $approvedOrder->approved_business_date?->format('Y-m-d'));
+        Carbon::setTestNow();
+    }
 
     public function test_owner_comprehensive_search_finds_an_order_by_custom_product_name(): void
     {
