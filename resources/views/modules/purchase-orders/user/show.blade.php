@@ -93,33 +93,40 @@
     $taskTitle = 'متابعة حالة الطلبية';
     $taskBody = 'لا يوجد إجراء مطلوب منك الآن؛ راقب المرحلة الحالية وسجل الأحداث.';
     $taskAnchor = 'order-overview';
+    $hasCurrentTask = false;
     if ($isAccountantContext) {
         if (in_array($order->inventory_review_status, ['returned_to_accountant', 'count_draft'], true)) {
             $taskTitle = 'أكمل جرد المنتجات المطلوبة';
             $taskBody = 'أدخل الكميات الفعلية ثم أرسل نتيجة الجرد إلى المالك.';
             $taskAnchor = 'order-actions';
+            $hasCurrentTask = true;
         } elseif ($order->status === 'sent') {
             $taskTitle = 'سجل ما وصل من المورد';
             $taskBody = 'طابق الكميات والتكاليف الفعلية ثم أرسل تأكيد الاستلام إلى المالك.';
             $taskAnchor = 'receipt-confirmation';
+            $hasCurrentTask = true;
         } elseif ($order->inventory_review_status === 'returned_for_edit') {
             $taskTitle = 'عدل بنود الطلبية';
             $taskBody = 'راجع ملاحظة المالك وصحح البنود المطلوبة ثم احفظ التعديل.';
             $taskAnchor = 'order-actions';
+            $hasCurrentTask = true;
         }
     } else {
         if ($order->status === 'draft') {
             $taskTitle = 'راجع المسودة وحدد الخطوة التالية';
             $taskBody = 'راجع البنود ثم أرسلها للمورد، أو أعدها للمحاسب للتعديل أو الجرد.';
             $taskAnchor = 'order-actions';
+            $hasCurrentTask = true;
         } elseif ($isOwnerReceiptReview) {
             $taskTitle = 'راجع تأكيد الاستلام';
             $taskBody = 'ابدأ بالفروقات والبنود التي عدلها المحاسب قبل المتابعة.';
             $taskAnchor = 'receipt-review';
+            $hasCurrentTask = true;
         } elseif ($isInventoryApproval) {
             $taskTitle = 'راجع الملخص ثم اعتمد المخزون';
             $taskBody = 'تحقق من إجمالي التكلفة والكميات وتحديثات التكلفة قبل الاعتماد النهائي.';
             $taskAnchor = 'inventory-approval';
+            $hasCurrentTask = true;
         } elseif ($order->status === 'sent') {
             $taskTitle = 'بانتظار وصول الطلبية';
             $taskBody = 'يمكن مشاركة نسخة المورد، ثم يسجل المالك أو المحاسب ما وصل فعليًا.';
@@ -200,7 +207,7 @@
                         <th>المنتج</th>
                         <th>الكمية المطلوبة</th>
                         <th>الوحدة</th>
-                        <th><span class="flex items-center gap-2">ملاحظة البند <x-ui.help title="من يكتب ملاحظة البند؟" body="يدخلها منشئ الطلبية أو من يعدلها لتوضيح مواصفات الشراء للمورد والمراجع، مثل اللون أو المقاس أو الموديل. لا تستخدم لكتابة قرار المراجعة؛ قرار المراجعة له حقل مستقل." /></span></th>
+                        <th><span class="flex items-center gap-2">ملاحظة البند <x-ui.help title="ماذا أكتب هنا؟" body="اكتب ما يساعد على شراء المنتج الصحيح، مثل: اللون الأسود، مقاس 40، أو رقم الموديل. اتركها فارغة إذا لم توجد مواصفات إضافية." /></span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -511,7 +518,7 @@
                     </div>
                 @endif
                 <table class="ui-table min-w-[680px]">
-                    <thead><tr><th>المنتج</th><th>نوع البند</th><th>الكمية</th><th>الوحدة</th><th><span class="flex items-center gap-2">ملاحظة البند <x-ui.help title="ملاحظة البند" body="كتبها منشئ الطلبية أو من عدّلها لتحديد مواصفات الشراء مثل اللون أو المقاس أو الموديل. ملاحظة قرار المراجعة تظهر في تنبيه مستقل أعلى الصفحة." /></span></th>
+                    <thead><tr><th>المنتج</th><th>نوع البند</th><th>الكمية</th><th>الوحدة</th><th><span class="flex items-center gap-2">ملاحظة البند <x-ui.help title="ماذا تعني؟" body="مواصفات تساعد على شراء المنتج الصحيح، مثل اللون أو المقاس أو رقم الموديل. إذا كانت فارغة فلا توجد مواصفات إضافية لهذا البند." /></span></th>
                         @if($order->inventory_review_status !== 'approved')
                             <th>آخر تعديل</th>
                         @endif

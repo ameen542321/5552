@@ -37,5 +37,7 @@
         <h2 id="purchaseOrderTaskTitle" class="ui-title text-lg font-black mt-2">{{ $taskTitle }}</h2>
         <p class="ui-text-soft mt-1">{{ $taskBody }}</p>
     </div>
-    <a href="#{{ $taskAnchor }}" class="ui-btn ui-btn-primary">انتقل إلى المهمة</a>
+    @if($hasCurrentTask)
+        <a href="#{{ $taskAnchor }}" class="ui-btn ui-btn-primary">انتقل إلى المهمة</a>
+    @endif
 </section>

@@ -455,6 +455,24 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->assertDontSee('المحاسب<br><strong class="ui-title">غير محدد', false);
     }
 
+    public function test_accountant_without_a_current_task_does_not_see_the_task_navigation_button(): void
+    {
+        [$owner, $store, $accountant] = $this->ownerStoreAndAccountant();
+        $order = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'accountant_id' => $accountant->id,
+            'status' => 'approved',
+            'workflow_status' => 'approved_and_supplied',
+        ]);
+
+        $this->actingAs($accountant, 'accountant')
+            ->get(route('accountant.purchase-orders.show', $order))
+            ->assertOk()
+            ->assertSee('لا يوجد إجراء مطلوب منك الآن')
+            ->assertDontSee('انتقل إلى المهمة');
+    }
+
     public function test_opening_a_returned_order_shows_a_fixed_arabic_status_and_note(): void
     {
         [$owner, $store] = $this->ownerStoreAndAccountant();
