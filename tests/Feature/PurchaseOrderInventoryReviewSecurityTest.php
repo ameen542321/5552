@@ -46,6 +46,23 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->assertDontSee('مورد غير مطابق');
     }
 
+    public function test_owner_comprehensive_search_accepts_the_full_visible_order_reference(): void
+    {
+        [$owner, $store] = $this->ownerStoreAndAccountant();
+        $matching = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'supplier_name' => 'مورد المرجع الكامل',
+            'status' => 'draft',
+            'workflow_status' => 'pending_owner_review',
+        ]);
+
+        $this->actingAs($owner)->get(route('user.stores.purchase-orders.index', [
+            $store,
+            'search' => $matching->referenceCode(),
+        ]))->assertOk()->assertSee('مورد المرجع الكامل');
+    }
+
     public function test_owner_show_displays_stage_tasks_sections_and_financial_summary_before_approval(): void
     {
         [$owner, $store] = $this->ownerStoreAndAccountant();

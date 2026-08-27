@@ -12,6 +12,7 @@ use App\Modules\PurchaseOrders\Models\StorePurchaseOrderItem;
 use App\Modules\PurchaseOrders\Services\PurchaseOrderPdfService;
 use App\Modules\PurchaseOrders\Services\StorePurchaseOrderService;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderItemSorter;
+use App\Modules\PurchaseOrders\Support\PurchaseOrderSearch;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow;
 use App\Services\ShiftLifecycleService;
 use App\Services\SupportSessionService;
@@ -41,6 +42,7 @@ class StorePurchaseOrderController extends Controller
         $workflowStatuses = array_keys(PurchaseOrderWorkflow::filterLabels($store->user?->name));
         $workflowStatus = in_array($request->get('workflow_status'), $workflowStatuses, true) ? $request->get('workflow_status') : null;
         $search = trim((string) $request->get('search', ''));
+        $searchOrderId = PurchaseOrderSearch::orderId($search);
         $dateFrom = $request->filled('date_from') ? $request->date('date_from')->startOfDay() : now()->startOfMonth();
         $dateTo = $request->filled('date_to') ? $request->date('date_to')->endOfDay() : now()->endOfMonth();
         $technicalSupportSession = app(SupportSessionService::class)->active($request);
@@ -57,10 +59,10 @@ class StorePurchaseOrderController extends Controller
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($workflowStatus, fn ($query) => $query->where('workflow_status', $workflowStatus))
             // البحث الشامل يطابق مرجع الطلبية، المورد، وأسماء المنتجات النظامية أو المخصصة.
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($nested) use ($search): void {
+            ->when($search !== '', function ($query) use ($search, $searchOrderId): void {
+                $query->where(function ($nested) use ($search, $searchOrderId): void {
                     $nested->where('supplier_name', 'like', '%'.$search.'%')
-                        ->orWhere('id', is_numeric($search) ? (int) $search : -1)
+                        ->when($searchOrderId !== null, fn ($referenceQuery) => $referenceQuery->orWhereKey($searchOrderId))
                         ->orWhereHas('items', function ($items) use ($search): void {
                             $items->where('custom_product_name', 'like', '%'.$search.'%')
                                 ->orWhereHas('product', fn ($product) => $product->where('name', 'like', '%'.$search.'%'))
@@ -545,12 +547,6 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         $this->authorizeOrder($store, $order);
         $support = app(SupportSessionService::class)->active($request);
         abort_unless($support && $support->target_role === 'owner', 403);
-        if ($order->approved_at || $order->approval_operation_id) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'workflow_status' => 'لا يمكن إعادة طلبية نُفذ اعتمادها المخزني إلى مرحلة سابقة. استخدم عملية عكس الاعتماد مع إبقاء سجلها.',
-            ]);
-        }
-
         $transitions = PurchaseOrderWorkflow::supportTransitions();
         $validated = $request->validate([
             'workflow_status' => ['required', Rule::in(array_keys($transitions))],
@@ -560,6 +556,12 @@ public function pdf(Store $store, StorePurchaseOrder $order)
 
         DB::transaction(function () use ($order, $validated, $transitions, $support, $supportNote): void {
             $lockedOrder = StorePurchaseOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            // يعاد فحص حماية الاعتماد بعد القفل لمنع تغيّر الطلبية بين الفحص والحفظ.
+            if ($lockedOrder->approved_at || $lockedOrder->approval_operation_id) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'workflow_status' => 'لا يمكن إعادة طلبية نُفذ اعتمادها المخزني إلى مرحلة سابقة. استخدم عملية عكس الاعتماد مع إبقاء سجلها.',
+                ]);
+            }
             $from = $lockedOrder->workflow_status;
             [$status, $workflowStatus] = $transitions[$validated['workflow_status']];
             $lockedOrder->update([
@@ -590,11 +592,13 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         $validated = $request->validate(['support_note' => ['required', 'string', 'min:10', 'max:500']]);
 
         DB::transaction(function () use ($order, $support, $validated): void {
-            $order->restore();
-            $order->events()->create([
+            $lockedOrder = StorePurchaseOrder::withTrashed()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_unless($lockedOrder->trashed(), 422, 'الطلبية غير محذوفة.');
+            $lockedOrder->restore();
+            $lockedOrder->events()->create([
                 'event' => 'support_restored',
                 'from_status' => 'deleted',
-                'to_status' => $order->workflow_status,
+                'to_status' => $lockedOrder->workflow_status,
                 'actor_type' => 'support',
                 'actor_id' => $support->admin_id,
                 'note' => trim($validated['support_note']).' — تذكرة الدعم '.$support->ticket_reference,
@@ -610,13 +614,6 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         $support = app(SupportSessionService::class)->active($request);
         abort_unless($support && $support->target_role === 'owner', 403);
         abort_unless((int) $order->store_id === (int) $store->id && (int) $store->user_id === (int) auth('web')->id(), 403);
-        if (in_array($order->status, ['received', 'approved'], true)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'order' => $order->status === 'approved'
-                    ? 'لا تحذف الطلبية المعتمدة نهائيًا. استخدم عملية عكس الاعتماد مع إبقاء سجل التدقيق.'
-                    : 'لا يمكن حذف الطلبية المستلمة نهائيًا؛ يجب إبقاء سجل الاستلام للمراجعة.',
-            ]);
-        }
         $request->validate([
             'confirmation' => ['required', Rule::in([$order->referenceCode()])],
             'support_note' => ['required', 'string', 'min:10', 'max:500'],
@@ -631,6 +628,14 @@ public function pdf(Store $store, StorePurchaseOrder $order)
 
         DB::transaction(function () use ($order, $support): void {
             $lockedOrder = StorePurchaseOrder::withTrashed()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            // الحماية الحاسمة داخل القفل: لا يعتمد المنع على الحالة القديمة التي حملها Route Model Binding.
+            if (in_array($lockedOrder->status, ['received', 'approved'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'order' => $lockedOrder->status === 'approved'
+                        ? 'لا تحذف الطلبية المعتمدة نهائيًا. استخدم عملية عكس الاعتماد مع إبقاء سجل التدقيق.'
+                        : 'لا يمكن حذف الطلبية المستلمة نهائيًا؛ يجب إبقاء سجل الاستلام للمراجعة.',
+                ]);
+            }
             $lockedOrder->forceDelete();
         });
 

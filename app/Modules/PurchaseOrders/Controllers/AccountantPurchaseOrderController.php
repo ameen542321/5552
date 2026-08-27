@@ -10,6 +10,7 @@ use App\Modules\PurchaseOrders\Services\PurchaseOrderPdfService;
 use App\Modules\PurchaseOrders\Services\StorePurchaseOrderService;
 use App\Modules\PurchaseOrders\Services\PurchaseOrderNotificationService;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderItemSorter;
+use App\Modules\PurchaseOrders\Support\PurchaseOrderSearch;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -33,6 +34,7 @@ class AccountantPurchaseOrderController extends Controller
         $workflowStatuses = array_keys(PurchaseOrderWorkflow::filterLabels($store->user?->name));
         $workflowStatus = in_array($request->get('workflow_status'), $workflowStatuses, true) ? $request->get('workflow_status') : null;
         $search = trim((string) $request->get('search', ''));
+        $searchOrderId = PurchaseOrderSearch::orderId($search);
         $dateFrom = $request->filled('date_from') ? $request->date('date_from')->startOfDay() : now()->startOfMonth();
         $dateTo = $request->filled('date_to') ? $request->date('date_to')->endOfDay() : now()->endOfMonth();
 
@@ -45,10 +47,10 @@ class AccountantPurchaseOrderController extends Controller
             ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($workflowStatus, fn ($query) => $query->where('workflow_status', $workflowStatus))
-            ->when($search !== '', function ($query) use ($search): void {
-                $query->where(function ($nested) use ($search): void {
+            ->when($search !== '', function ($query) use ($search, $searchOrderId): void {
+                $query->where(function ($nested) use ($search, $searchOrderId): void {
                     $nested->where('supplier_name', 'like', '%'.$search.'%')
-                        ->orWhere('id', is_numeric($search) ? (int) $search : -1)
+                        ->when($searchOrderId !== null, fn ($referenceQuery) => $referenceQuery->orWhereKey($searchOrderId))
                         ->orWhereHas('items', function ($items) use ($search): void {
                             $items->where('custom_product_name', 'like', '%'.$search.'%')
                                 ->orWhereHas('product', fn ($product) => $product->where('name', 'like', '%'.$search.'%'))

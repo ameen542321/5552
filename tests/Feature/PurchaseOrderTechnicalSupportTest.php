@@ -93,7 +93,9 @@ class PurchaseOrderTechnicalSupportTest extends TestCase
         $this->actingAs($owner)
             ->get(route('user.stores.purchase-orders.index', $store))
             ->assertOk()
-            ->assertSee('حذف نهائي');
+            ->assertSee('حذف نهائي')
+            ->assertSee('سبب الحذف النهائي')
+            ->assertDontSee('name="support_note" value="حذف إداري نهائي', false);
     }
 
     public function test_owner_without_support_session_cannot_use_support_tools(): void
@@ -161,7 +163,9 @@ class PurchaseOrderTechnicalSupportTest extends TestCase
         $this->actingAs($owner)
             ->get(route('user.stores.purchase-orders.index', $store))
             ->assertOk()
-            ->assertSee('استعادة الطلبية');
+            ->assertSee('استعادة الطلبية')
+            ->assertSee('سبب الاستعادة')
+            ->assertDontSee('name="support_note" value="استعادة الطلبية', false);
 
         $this->actingAs($owner)->patch(
             route('user.stores.purchase-orders.support-restore', [$store, $order->id]),
