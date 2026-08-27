@@ -58,4 +58,13 @@ class PurchaseOrderWorkflowTest extends TestCase
             \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::consistencyIssues($order)
         );
     }
+
+    public function test_event_help_explains_reversal_without_claiming_the_order_was_deleted(): void
+    {
+        $help = PurchaseOrderWorkflow::eventHelp('inventory_approval_reversed');
+
+        $this->assertStringContainsString('حركات مقابلة', $help);
+        $this->assertStringContainsString('أبقى الطلبية', $help);
+        $this->assertStringNotContainsString('حذف', $help);
+    }
 }
