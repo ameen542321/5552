@@ -43,10 +43,12 @@ class StorePurchaseOrderService
             Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $weekStartsAt = now()->startOfWeek(CarbonInterface::SATURDAY);
             $weekEndsAt = $weekStartsAt->copy()->addDays(6)->endOfDay();
+            // يقرأ الحارس الحد الفعال داخل قفل المتجر لمنع طلبين متزامنين من تجاوز الحد.
             $limitSetting = $this->limits->forStore($store);
             $weeklyLimit = $limitSetting->effectiveWeeklyLimit();
             $countedStatuses = $limitSetting->effectiveCountedStatuses();
             $weeklyOrdersCount = StorePurchaseOrder::where('store_id', $store->id)
+                // لا تدخل الحالات المستبعدة إداريًا في العدد الأسبوعي.
                 ->whereIn('status', $countedStatuses)
                 ->whereBetween('created_at', [$weekStartsAt, $weekEndsAt])
                 ->count();

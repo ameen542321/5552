@@ -13,6 +13,7 @@
         <a href="{{ route('admin.health.purchase-orders') }}" class="ui-btn ui-btn-info">فتح فحص السلامة</a>
     </header>
 
+    {{-- فلاتر قراءة فقط؛ لا تنفذ أي تغيير على الطلبية. --}}
     <form method="GET" class="ui-card p-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <label class="ui-label">المتجر
             <select name="store_id" class="ui-input"><option value="">كل المتاجر</option>@foreach($stores as $store)<option value="{{ $store->id }}" @selected((string)($filters['store_id'] ?? '') === (string)$store->id)>{{ $store->name }}</option>@endforeach</select>
@@ -31,6 +32,7 @@
         <div class="flex items-end gap-2"><button class="ui-btn ui-btn-primary">تطبيق</button><a href="{{ route('admin.purchase-orders.index') }}" class="ui-btn ui-btn-secondary">مسح</a></div>
     </form>
 
+    {{-- مؤشرات الفترة الحالية مشتقة من نفس الفلاتر حتى تتطابق القائمة والتقرير. --}}
     <section class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4" aria-label="تقارير أداء الطلبيات">
         <article class="ui-card p-4"><span class="ui-text-soft">عدد الطلبيات</span><strong class="ui-title block text-2xl">{{ number_format($reports['orders_count']) }}</strong></article>
         <article class="ui-card p-4"><span class="ui-text-soft">من الإنشاء إلى الإرسال</span><strong class="ui-title block text-2xl">{{ $reports['average_creation_to_send_hours'] === null ? '—' : number_format($reports['average_creation_to_send_hours'], 1).' ساعة' }}</strong></article>
@@ -41,6 +43,7 @@
         <article class="ui-card p-4"><span class="ui-text-soft">إجمالي النقص</span><strong class="ui-status-success block text-2xl">{{ number_format($reports['negative_variance_total'], 2) }} ر.س</strong></article>
     </section>
 
+    {{-- شارة التأخير للعرض فقط ولا يرافقها إشعار أو مهمة مجدولة. --}}
     <section class="ui-card p-5 space-y-4">
         <div class="flex items-center gap-2"><h2 class="ui-title text-xl font-black">الطلبيات</h2><x-ui.help title="العمر والتأخير" body="يحسب عمر المرحلة من آخر حدث مسجل. تظهر شارة التأخير عند تجاوز حد المرحلة، دون إرسال إشعارات أو تشغيل جدولة تلقائية." /></div>
         <div class="ui-table-wrap"><table class="ui-table min-w-[1100px]">
@@ -60,6 +63,7 @@
         {{ $orders->links() }}
     </section>
 
+    {{-- الإعداد العام يطبق عند غياب تخصيص المتجر، والاستثناء المؤقت أعلى أولوية. --}}
     <details class="ui-card ui-disclosure">
         <summary class="ui-disclosure-summary p-5"><span><strong class="ui-title font-black">إعدادات حدود الطلبيات</strong><span class="ui-text-soft block mt-1">الحد الافتراضي، حالات الاحتساب، وحدود المتاجر والاستثناءات المؤقتة.</span></span><i class="fa-solid fa-chevron-down ui-disclosure-chevron" aria-hidden="true"></i></summary>
         <div class="border-t ui-border p-5 space-y-5">

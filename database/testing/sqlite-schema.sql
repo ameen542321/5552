@@ -700,6 +700,7 @@ CREATE TABLE "store_purchase_order_items" (
     CONSTRAINT "store_purchase_order_items_store_purchase_order_id_foreign" FOREIGN KEY ("store_purchase_order_id") REFERENCES "store_purchase_orders" ("id") ON DELETE CASCADE
 );
 
+-- مرآة SQLite لجدول حدود الطلبيات المستخدم في اختبارات RefreshDatabase الموحدة.
 CREATE TABLE "purchase_order_limit_settings" (
     "id" INTEGER NOT NULL,
     "store_id" INTEGER DEFAULT NULL,

@@ -10,6 +10,7 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // سجل store_id = null يمثل الافتراضي العام، وبقية السجلات تخص متجرًا واحدًا.
         Schema::create('purchase_order_limit_settings', function (Blueprint $table): void {
             $table->id();
             $table->foreignId('store_id')->nullable()->unique()->constrained('stores')->cascadeOnDelete();
@@ -22,6 +23,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
+        // زرع الافتراضي يحافظ على الحد السابق (4) فور تشغيل migration.
         DB::table('purchase_order_limit_settings')->insert([
             'store_id' => null,
             'weekly_limit' => PurchaseOrderLimitSetting::DEFAULT_WEEKLY_LIMIT,

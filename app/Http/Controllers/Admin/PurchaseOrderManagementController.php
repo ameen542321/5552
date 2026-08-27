@@ -15,6 +15,10 @@ use Illuminate\Validation\Rule;
 
 class PurchaseOrderManagementController extends Controller
 {
+    /**
+     * لوحة قراءة موحدة للأدمن؛ تجمع المتابعة والتقارير والإعدادات من دون تنفيذ
+     * أي انتقال أو حركة مخزنية على الطلبية.
+     */
     public function index(Request $request, PurchaseOrderLimitService $limits)
     {
         $validated = $request->validate([
@@ -28,6 +32,8 @@ class PurchaseOrderManagementController extends Controller
         $dateFrom = Carbon::parse($validated['date_from'] ?? now()->startOfMonth())->startOfDay();
         $dateTo = Carbon::parse($validated['date_to'] ?? now()->endOfMonth())->endOfDay();
 
+        // نشتق بداية المرحلة من آخر حدث انتقل إلى المرحلة الحالية، لا من updated_at؛
+        // لأن تعديل ملاحظة أو بيانات مساعدة لا يعني أن عمر المرحلة بدأ من جديد.
         $base = StorePurchaseOrder::query()
             ->with(['store:id,name', 'accountant:id,name'])
             ->withCount('items')
@@ -48,6 +54,7 @@ class PurchaseOrderManagementController extends Controller
                 });
             });
 
+        // نسخة مستقلة للتقارير حتى لا تؤثر pagination في المجاميع والمتوسطات المعروضة.
         $reportOrders = (clone $base)->with('items:id,store_purchase_order_id,price_variance')->get();
         $orders = $base->latest()->paginate(25)->withQueryString();
         $orders->getCollection()->each(function (StorePurchaseOrder $order): void {
@@ -57,6 +64,7 @@ class PurchaseOrderManagementController extends Controller
             $order->setAttribute('integrity_issue_count', count(PurchaseOrderWorkflow::consistencyIssues($order)));
         });
 
+        // فروقات التكلفة تقسم إلى زيادة ونقص حتى لا يلغي أحدهما الآخر في الإجمالي.
         $reports = [
             'orders_count' => $reportOrders->count(),
             'average_creation_to_send_hours' => $this->averageHours($reportOrders, 'created_at', 'sent_at'),
@@ -95,6 +103,8 @@ class PurchaseOrderManagementController extends Controller
     {
         $validated = $this->validateLimit($request, true);
         $store = Store::findOrFail($validated['store_id']);
+        // وجود قيمة استثناء يعني ضرورة حفظ الأدمن والسبب والانتهاء؛ وعند إزالة
+        // الاستثناء تصفر بياناته حتى يعود المتجر تلقائيًا إلى حده الخاص.
         PurchaseOrderLimitSetting::updateOrCreate(['store_id' => $store->id], [
             'weekly_limit' => $validated['weekly_limit'],
             'counted_statuses' => $validated['counted_statuses'],
@@ -109,6 +119,7 @@ class PurchaseOrderManagementController extends Controller
 
     private function validateLimit(Request $request, bool $allowException): array
     {
+        // الحقول المؤقتة ممنوعة في نموذج الإعداد العام، ومشروطة ببعضها في إعداد المتجر.
         return $request->validate([
             'weekly_limit' => ['required', 'integer', 'min:1', 'max:100'],
             'store_id' => [$allowException ? 'required' : 'prohibited', 'integer', Rule::exists('stores', 'id')],
@@ -130,6 +141,7 @@ class PurchaseOrderManagementController extends Controller
 
     private function delayThreshold(?string $workflowStatus): int
     {
+        // حدود تشغيلية للعرض فقط؛ لا تشغل جدولة ولا ترسل إشعارًا تلقائيًا.
         return match ($workflowStatus) {
             'pending_owner_review', 'returned_for_edit', 'returned_for_count', 'returned_after_count' => 24,
             'pending_receipt_confirmation' => 72,
