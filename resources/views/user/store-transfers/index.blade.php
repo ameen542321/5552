@@ -71,35 +71,45 @@
                     @endif
                 </div>
 
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                    @foreach($transfer->items as $item)
-                        <div class="rounded-xl border ui-border ui-surface-muted-bg p-4 space-y-3">
-                            <div>
-                                <p class="ui-title font-bold">{{ $item->product_name_snapshot ?? $item->senderProduct?->name ?? 'منتج غير متاح' }}</p>
-                                <p class="ui-text-muted ui-text-caption">الكمية المحولة: {{ $transferQuantity($item) }}</p>
-                                @if($item->receiverProduct)
-                                    <p class="ui-status-success text-sm mt-1">المنتج المستلم: {{ $item->receiverProduct->name }}</p>
-                                @endif
-                            </div>
-
-                            @if($transfer->status === 'pending' && (int) $transfer->receiver_store_id === (int) $store->id)
-                                <form method="POST" action="{{ route('user.stores.transfers.owner-approve', [$store->id, $transfer->id]) }}" class="space-y-3">
-                                    @csrf
+                @php($ownerCanApproveIncoming = $transfer->status === 'pending' && (int) $transfer->receiver_store_id === (int) $store->id)
+                @if($ownerCanApproveIncoming)
+                    <form method="POST" action="{{ route('user.stores.transfers.owner-approve', [$store->id, $transfer->id]) }}" class="space-y-4" data-transfer-approval-form>
+                        @csrf
+                        <div class="ui-card-muted p-4 space-y-2">
+                            <label class="block ui-text-soft font-bold" for="transfer-business-date-{{ $transfer->id }}">تاريخ استلام جميع البنود</label>
+                            <input id="transfer-business-date-{{ $transfer->id }}" type="date" name="business_date" value="{{ $currentBusinessDate }}" min="{{ now()->startOfMonth()->toDateString() }}" max="{{ now()->endOfMonth()->toDateString() }}" required class="ui-input px-4 py-3">
+                            <p class="ui-text-soft ui-text-caption">اختر منتجًا مقابلًا لكل بند، ثم اعتمد الطلب كاملًا مرة واحدة.</p>
+                        </div>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                            @foreach($transfer->items as $item)
+                                <div class="rounded-xl border ui-border ui-surface-muted-bg p-4 space-y-3">
                                     <div>
-                                        <label class="block ui-text-soft font-bold mb-2">اختر التاريخ</label>
-                                        <input type="date" name="business_date" value="{{ $currentBusinessDate }}" min="{{ now()->startOfMonth()->toDateString() }}" max="{{ now()->endOfMonth()->toDateString() }}" required class="ui-input px-4 py-3">
+                                        <p class="ui-title font-bold">{{ $item->product_name_snapshot ?? $item->senderProduct?->name ?? 'منتج غير متاح' }}</p>
+                                        <p class="ui-text-muted ui-text-caption">الكمية المحولة: {{ $transferQuantity($item) }}</p>
                                     </div>
                                     <x-store-transfers.product-picker
                                         :item="$item"
-                                        label="اختر المنتج المقابل في المتجر المستلم"
-                                        note="إذا لم تجد المنتج، أنشئه في المتجر المستلم ثم عد لاعتماد الطلب." />
-                                    <button class="ui-btn ui-btn-success w-full px-4 py-2">اعتماد نيابة عن المستلم</button>
-                                    <a href="{{ route('user.stores.products.create', $transfer->receiver_store_id) }}" target="_blank" class="ui-btn ui-btn-secondary inline-flex w-full items-center justify-center px-4 py-2 text-center text-sm">فتح صفحة إنشاء منتج للمتجر المستلم</a>
-                                </form>
-                            @endif
+                                        label="المنتج الذي ستضاف إليه الكمية في المتجر المستلم"
+                                        note="يجب اختيار منتج لهذا البند. إذا لم تجده، أنشئه في المتجر المستلم ثم عد إلى الطلب." />
+                                </div>
+                            @endforeach
                         </div>
-                    @endforeach
-                </div>
+                        <div class="grid grid-cols-1 gap-2 sm:flex sm:justify-end">
+                            <a href="{{ route('user.stores.products.create', $transfer->receiver_store_id) }}" target="_blank" class="ui-btn ui-btn-secondary inline-flex items-center justify-center px-4 py-2 text-center text-sm">إنشاء منتج في المتجر المستلم</a>
+                            <button class="ui-btn ui-btn-success px-5 py-3">اعتماد واستلام جميع البنود ({{ $transfer->items->count() }})</button>
+                        </div>
+                    </form>
+                @else
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        @foreach($transfer->items as $item)
+                            <div class="rounded-xl border ui-border ui-surface-muted-bg p-4 space-y-3">
+                                <p class="ui-title font-bold">{{ $item->product_name_snapshot ?? $item->senderProduct?->name ?? 'منتج غير متاح' }}</p>
+                                <p class="ui-text-muted ui-text-caption">الكمية المحولة: {{ $transferQuantity($item) }}</p>
+                                @if($item->receiverProduct)<p class="ui-status-success text-sm">المنتج المستلم: {{ $item->receiverProduct->name }}</p>@endif
+                            </div>
+                        @endforeach
+                    </div>
+                @endif
             </div>
         @empty
             <div class="ui-card p-10 text-center ui-text-muted">لا توجد طلبات نقل حتى الآن.</div>

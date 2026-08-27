@@ -110,12 +110,20 @@ class StoreTransferService
             $lockedTransfer->load(['senderStore', 'receiverStore', 'items.senderProduct']);
             $this->ensureActorCanReceiveTransfer($actor, $lockedTransfer, $ownerOverride);
 
+            $missingReceiverProducts = $lockedTransfer->items->filter(function (StoreTransferItem $item) use ($receiverProductIds): bool {
+                return (int) ($receiverProductIds[$item->id] ?? $receiverProductIds[$item->sender_product_id] ?? 0) <= 0;
+            });
+            if ($missingReceiverProducts->isNotEmpty()) {
+                $names = $missingReceiverProducts
+                    ->map(fn (StoreTransferItem $item) => $item->product_name_snapshot ?: $item->senderProduct?->name ?: 'بند رقم '.$item->id)
+                    ->implode('، ');
+                throw ValidationException::withMessages([
+                    'receiver_product_id' => 'لم يكتمل ربط جميع بنود النقل. اختر المنتج المستلم مقابل: '.$names.'.',
+                ]);
+            }
+
             foreach ($lockedTransfer->items as $item) {
                 $receiverProductId = (int) ($receiverProductIds[$item->id] ?? $receiverProductIds[$item->sender_product_id] ?? 0);
-                if ($receiverProductId <= 0) {
-                    throw ValidationException::withMessages(['receiver_product_id' => 'يجب اختيار المنتج المقابل في المتجر المستلم قبل الموافقة.']);
-                }
-
                 $receiverProduct = Product::query()->sellable()->whereKey($receiverProductId)->lockForUpdate()->firstOrFail();
                 $this->ensureProductBelongsToStore($receiverProduct, $lockedTransfer->receiverStore);
 
