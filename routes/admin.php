@@ -6,6 +6,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\CreditHealthCheckController;
 use App\Http\Controllers\Admin\DebtHealthCheckController;
+use App\Http\Controllers\Admin\PurchaseOrderHealthCheckController;
 use App\Http\Controllers\AdminOneSignalSettingsController;
 use App\Http\Controllers\Notifications\AdminNotificationSendController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
@@ -61,6 +62,8 @@ Route::middleware(['web', 'auth', 'is.admin'])
 
         Route::get('/health/debt', [DebtHealthCheckController::class, 'index'])
             ->name('health.debt');
+        Route::get('/health/purchase-orders', [PurchaseOrderHealthCheckController::class, 'index'])
+            ->name('health.purchase-orders');
 
         /*
         |--------------------------------------------------------------------------

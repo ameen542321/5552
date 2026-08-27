@@ -105,14 +105,18 @@
                             @if($order->trashed())
                                 <form method="POST" action="{{ $restoreRoute($order) }}">
                                     @csrf @method('PATCH')
+                                    <input type="hidden" name="support_note" value="استعادة الطلبية المحذوفة بعد مراجعة تذكرة الدعم">
                                     <button type="submit" class="ui-btn ui-btn-success px-4 py-2 ui-text-caption">استعادة الطلبية</button>
                                 </form>
                             @endif
-                            <form method="POST" action="{{ route('user.stores.purchase-orders.support-purge', [$store->id, $order->id]) }}" data-ui-confirm="سيحذف الدعم الطلبية وملفاتها التابعة نهائيًا مع الحفاظ على المنتجات وحركات المخزون." data-ui-confirm-title="حذف نهائي بواسطة الدعم؟">
+                            @if(!in_array($order->status, ['received', 'approved'], true))
+                            <form method="POST" action="{{ route('user.stores.purchase-orders.support-purge', [$store->id, $order->id]) }}" data-ui-confirm="سيحذف الدعم الطلبية وملفاتها التابعة نهائيًا." data-ui-confirm-title="حذف نهائي بواسطة الدعم؟">
                                 @csrf @method('DELETE')
                                 <input type="hidden" name="confirmation" value="{{ $order->referenceCode() }}">
+                                <input type="hidden" name="support_note" value="حذف إداري نهائي بعد مراجعة تذكرة الدعم">
                                 <button type="submit" class="ui-btn ui-btn-danger px-4 py-2 ui-text-caption">حذف نهائي</button>
                             </form>
+                            @endif
                         @elseif(!$isAccountantContext && in_array($order->status, ['draft','sent'], true))
                             {{-- إصلاح مطبق: تأكيدات أوامر الشراء ومنع النقر المزدوج تستخدم عقد الحوارات المركزي. --}}
                             <form method="POST" action="{{ $cancelRoute($order) }}"

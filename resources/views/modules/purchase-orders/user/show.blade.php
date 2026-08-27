@@ -271,6 +271,7 @@
             @endif
             @if($order->status === 'approved' && $order->approved_business_date)
                 <p class="ui-text-soft">تاريخ اعتماد المخزون: <strong class="ui-title">{{ $order->approved_business_date->format('Y-m-d') }}</strong></p>
+                <p class="ui-text-soft">وقت الاعتماد الفعلي للمراجعة: <strong class="ui-title" dir="ltr">{{ $order->approved_at?->format('Y-m-d H:i') ?: '—' }}</strong></p>
             @endif
         </div>
     </details>

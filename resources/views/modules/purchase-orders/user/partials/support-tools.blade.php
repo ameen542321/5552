@@ -9,16 +9,30 @@
     <div class="border-t ui-border p-5 space-y-4">
         <div class="flex flex-wrap gap-2">
             <button type="button" class="ui-btn ui-btn-warning" @click="statusModalOpen = true">مراجعة الحالة</button>
-            <form method="POST" action="{{ route('user.stores.purchase-orders.support-purge', [$store->id, $order->id]) }}" class="flex flex-wrap items-end gap-2" data-ui-confirm="ستحذف الطلبية وبنودها وأحداثها ومحاولات الجرد نهائيًا. لن تحذف المنتجات أو حركات التوريد." data-ui-confirm-title="حذف الطلبية نهائيًا؟">
+            @if($order->workflow_status === 'approved_and_supplied')
+            <form method="POST" action="{{ route('user.stores.purchase-orders.support-reverse', [$store->id, $order->id]) }}" class="flex flex-wrap items-end gap-2" data-ui-confirm="ستنشأ حركات مقابلة تعكس المخزون ومشتريات المالك مع إبقاء الطلبية وسجلها." data-ui-confirm-title="عكس اعتماد الطلبية؟">
+                @csrf
+                <input type="hidden" name="business_date" value="{{ $currentBusinessDate }}">
+                <label class="ui-label">اكتب رمز الطلبية للعكس
+                    <input name="confirmation" required class="ui-input" placeholder="{{ $order->referenceCode() }}">
+                </label>
+                <label class="ui-label">سبب العكس الإداري
+                    <input name="support_note" required minlength="10" maxlength="500" class="ui-input" placeholder="سبب واضح لا يقل عن 10 أحرف">
+                </label>
+                <button class="ui-btn ui-btn-danger">عكس الاعتماد</button>
+            </form>
+            @elseif(!in_array($order->status, ['received', 'approved'], true))
+            <form method="POST" action="{{ route('user.stores.purchase-orders.support-purge', [$store->id, $order->id]) }}" class="flex flex-wrap items-end gap-2" data-ui-confirm="ستحذف الطلبية وبنودها وأحداثها ومحاولات الجرد نهائيًا." data-ui-confirm-title="حذف الطلبية نهائيًا؟">
                 @csrf @method('DELETE')
                 <label class="ui-label">اكتب رمز الطلبية للحذف
                     <input name="confirmation" required class="ui-input" placeholder="{{ $order->referenceCode() }}">
                 </label>
                 <label class="ui-label">سبب الحذف
-                    <input name="support_note" minlength="3" maxlength="500" class="ui-input" placeholder="اختياري؛ يستخدم رقم التذكرة عند تركه فارغًا">
+                    <input name="support_note" required minlength="10" maxlength="500" class="ui-input" placeholder="سبب واضح لا يقل عن 10 أحرف">
                 </label>
                 <button class="ui-btn ui-btn-danger">حذف نهائي</button>
             </form>
+            @endif
         </div>
     </div>
 
@@ -39,7 +53,7 @@
                     </select>
                 </label>
                 <label class="ui-label">سبب تصحيح الحالة
-                    <textarea name="support_note" minlength="3" maxlength="500" rows="3" class="ui-input" placeholder="اختياري؛ عند تركه فارغًا يحفظ رقم تذكرة الدعم"></textarea>
+                    <textarea name="support_note" required minlength="10" maxlength="500" rows="3" class="ui-input" placeholder="سبب واضح لا يقل عن 10 أحرف؛ يضاف إليه رقم التذكرة تلقائيًا"></textarea>
                 </label>
                 <div class="flex justify-end gap-2">
                     <button type="button" class="ui-btn ui-btn-secondary" @click="statusModalOpen = false">إلغاء</button>
