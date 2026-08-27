@@ -7,6 +7,7 @@ use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\CreditHealthCheckController;
 use App\Http\Controllers\Admin\DebtHealthCheckController;
 use App\Http\Controllers\Admin\PurchaseOrderHealthCheckController;
+use App\Http\Controllers\Admin\PurchaseOrderManagementController;
 use App\Http\Controllers\AdminOneSignalSettingsController;
 use App\Http\Controllers\Notifications\AdminNotificationSendController;
 use App\Http\Controllers\Admin\UserController as AdminUserController;
@@ -64,6 +65,9 @@ Route::middleware(['web', 'auth', 'is.admin'])
             ->name('health.debt');
         Route::get('/health/purchase-orders', [PurchaseOrderHealthCheckController::class, 'index'])
             ->name('health.purchase-orders');
+        Route::get('/purchase-orders', [PurchaseOrderManagementController::class, 'index'])->name('purchase-orders.index');
+        Route::patch('/purchase-orders/limits/global', [PurchaseOrderManagementController::class, 'updateGlobalLimit'])->name('purchase-orders.limits.global');
+        Route::patch('/purchase-orders/limits/stores', [PurchaseOrderManagementController::class, 'updateStoreLimit'])->name('purchase-orders.limits.store');
 
         /*
         |--------------------------------------------------------------------------

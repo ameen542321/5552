@@ -8,11 +8,13 @@ use App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow;
 
 class PurchaseOrderHealthCheckController extends Controller
 {
-    public function index()
+    public function index(?\Illuminate\Http\Request $request = null)
     {
+        $request ??= request();
         $rows = StorePurchaseOrder::withTrashed()
             ->with(['store:id,name', 'items:id,store_purchase_order_id,quantity_received,excluded_after_count,add_to_owner_purchases,owner_purchase_id,stock_quantity_before,stock_quantity_after,cost_price_before,cost_price_after'])
             ->latest('id')
+            ->when($request->integer('order_id'), fn ($query, $orderId) => $query->whereKey($orderId))
             ->limit(500)
             ->get()
             ->map(function (StorePurchaseOrder $order): ?array {
