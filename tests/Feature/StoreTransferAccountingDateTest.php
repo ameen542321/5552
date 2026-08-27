@@ -102,6 +102,30 @@ class StoreTransferAccountingDateTest extends TestCase
         }
     }
 
+    public function test_receiver_picker_searches_all_sellable_products_without_suggestion_limit(): void
+    {
+        $owner = User::factory()->create(['plan_id' => null, 'welcome_shown' => true]);
+        $sender = Store::factory()->create(['user_id' => $owner->id]);
+        $receiver = Store::factory()->create(['user_id' => $owner->id]);
+        $senderProduct = $this->product($owner, $sender, 'منتج مرسل مختلف', 10);
+        $receiverProductNames = collect(range(1, 10))
+            ->map(fn (int $index) => 'اختيار مستقل '.str_pad((string) $index, 2, '0', STR_PAD_LEFT));
+        $receiverProductNames->each(fn (string $name) => $this->product($owner, $receiver, $name, 0));
+
+        app(StoreTransferService::class)->createTransfer($sender, $receiver, [[
+            'sender_product_id' => $senderProduct->id,
+            'quantity' => 1,
+            'unit_type' => 'unit',
+        ]], null, $owner, now()->toDateString());
+
+        $response = $this->actingAs($owner)->get(route('user.stores.transfers.index', $receiver));
+        $response->assertOk()->assertSee('ابحث في جميع منتجات المتجر المستلم');
+        foreach ($receiverProductNames as $name) {
+            $response->assertSee($name);
+        }
+        $response->assertSee('data-search=', false);
+    }
+
     public function test_owner_transfer_page_only_contains_transfers_related_to_selected_store(): void
     {
         $owner = User::factory()->create(['plan_id' => null, 'welcome_shown' => true]);

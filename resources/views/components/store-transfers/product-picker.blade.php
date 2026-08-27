@@ -15,7 +15,7 @@
                data-picker-input
                required
                autocomplete="off"
-               placeholder="ابحث باسم المنتج واختره..."
+               placeholder="ابحث في جميع منتجات المتجر المستلم..."
                class="ui-input px-3 py-2 text-sm">
         <div data-picker-options class="absolute z-50 mt-2 hidden max-h-56 w-full overflow-y-auto rounded-xl border ui-border ui-surface-strong-bg shadow-2xl">
             @foreach(($item->receiverSuggestions ?? collect()) as $suggestion)
@@ -23,11 +23,12 @@
                         data-picker-option
                         data-id="{{ $suggestion->id }}"
                         data-label="{{ $suggestion->name }}"
+                        data-search="{{ trim($suggestion->name.' '.($suggestion->barcode ?? '')) }}"
                         class="block w-full px-3 py-2 text-right text-sm ui-title ui-hover-surface">
                     {{ $suggestion->name }}
                 </button>
             @endforeach
-            <p data-picker-empty class="hidden p-3 text-center ui-text-caption ui-text-muted">لا توجد نتائج مطابقة.</p>
+            <p data-picker-empty class="hidden p-3 text-center ui-text-caption ui-text-muted">لا يوجد منتج بهذا الاسم ضمن منتجات المتجر المستلم.</p>
         </div>
     </div>
     <p class="ui-text-caption ui-status-warning">{{ $note }}</p>

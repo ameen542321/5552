@@ -179,40 +179,6 @@ class StoreTransferService
         return $this->returnTransferToSender($transfer, $actor, self::STATUS_CANCELLED, null, $businessDate);
     }
 
-    public function suggestReceiverProducts(StoreTransferItem $item, int $receiverStoreId, int $limit = 8)
-    {
-        $item->loadMissing('senderProduct');
-        $sender = $item->senderProduct;
-
-        if (!$sender) {
-            return collect();
-        }
-
-        return Product::query()
-            ->where('store_id', $receiverStoreId)
-            ->sellable()
-            ->where(function ($query) use ($sender) {
-                if ($sender->barcode) {
-                    $query->orWhere('barcode', $sender->barcode);
-                }
-
-                $query->orWhere('name', $sender->name)
-                    ->orWhere('name', 'like', '%' . $sender->name . '%');
-
-                foreach ($this->nameTokens($sender->name) as $token) {
-                    $query->orWhere('name', 'like', '%' . $token . '%');
-                }
-
-                if ($sender->category_id) {
-                    $query->orWhere('category_id', $sender->category_id);
-                }
-            })
-            ->orderByRaw('CASE WHEN name = ? THEN 0 ELSE 1 END', [$sender->name])
-            ->orderBy('name')
-            ->limit($limit)
-            ->get(['id', 'name', 'quantity', 'barcode', 'category_id']);
-    }
-
     public function markSeen(StoreTransfer $transfer, Accountant $accountant): StoreTransfer
     {
         if ((int) $transfer->receiver_store_id !== (int) $accountant->store_id) {
@@ -367,13 +333,4 @@ class StoreTransferService
         return $actor instanceof User ? (int) $actor->id : null;
     }
 
-    private function nameTokens(string $name): array
-    {
-        return collect(preg_split('/\s+/u', trim($name)) ?: [])
-            ->filter(fn ($token) => mb_strlen($token) >= 3)
-            ->unique()
-            ->take(5)
-            ->values()
-            ->all();
-    }
 }
