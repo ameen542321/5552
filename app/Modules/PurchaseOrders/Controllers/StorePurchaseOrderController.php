@@ -111,13 +111,6 @@ class StorePurchaseOrderController extends Controller
     public function show(Store $store, StorePurchaseOrder $order)
     {
         $this->authorizeOrder($store, $order);
-        if (in_array($order->workflow_status, ['returned_for_edit', 'returned_after_edit', 'returned_for_count', 'returned_after_count'], true)) {
-            $message = 'حالة الطلبية: '.PurchaseOrderWorkflow::label($order->workflow_status, $store->user?->name);
-            if (trim((string) $order->inventory_review_note) !== '') {
-                $message .= ' — '.$order->inventory_review_note;
-            }
-            session()->flash('info', $message);
-        }
         $order->load(['items.product', 'items.matchedProduct', 'items.countAttempts', 'store', 'accountant', 'events']);
         PurchaseOrderItemSorter::sortLoadedItemsByName($order);
         // تحتاج نافذة الربط إلى الوصف أيضًا حتى يطابق بحث المنتجات الاسم أو الوصف.

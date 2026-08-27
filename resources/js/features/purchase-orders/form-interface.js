@@ -18,7 +18,6 @@ if (root) {
         const existingCustomRows = config.existingCustomRows || [];
         const isEdit = Boolean(config.isEdit);
         const hasServerErrors = Boolean(config.hasServerErrors);
-        const serverError = String(config.serverError || '').trim();
         const hideInventoryValues = Boolean(config.hideInventoryValues);
         const skipConfirmation = Boolean(config.skipConfirmation);
         // المسودة معزولة بحسب المالك والمتجر، وتنتهي بعد سبعة أيام من آخر تعديل.
@@ -39,6 +38,11 @@ if (root) {
         const list = document.getElementById('orderItemsList');
         const orderRowsSearch = document.getElementById('orderRowsSearch');
         const orderRowsSearchCount = document.getElementById('orderRowsSearchCount');
+        const itemsCount = document.getElementById('purchaseOrderItemsCount');
+        const productsCount = document.getElementById('purchaseOrderProductsCount');
+        const customCount = document.getElementById('purchaseOrderCustomCount');
+        const incompleteCount = document.getElementById('purchaseOrderIncompleteCount');
+        const itemsEmpty = document.getElementById('purchaseOrderItemsEmpty');
 
         let rowIndex = 0;
         let customIndex = 0;
@@ -47,18 +51,6 @@ if (root) {
         let submissionInProgress = false;
 
         const money = new Intl.NumberFormat('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-        if (serverError && typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: 'تعذر حفظ الطلبية',
-                text: serverError,
-                icon: 'warning',
-                confirmButtonText: 'حسنًا',
-                background: '',
-                color: '',
-                confirmButtonColor: '',
-            });
-        }
 
         function draftSnapshot(pendingSubmission = false) {
             const productRows = [];
@@ -138,6 +130,17 @@ if (root) {
                 row.querySelectorAll('.js-row-num').forEach(el => el.textContent = sequenceNumber);
             });
             updateRowsSearch();
+            const customRows = rows.filter((row) => row.dataset.isCustom === 'true');
+            const incompleteRows = rows.filter((row) => {
+                const quantity = Number(row.querySelector('.js-input-qty')?.value || 0);
+                const nameMissing = row.dataset.isCustom === 'true' && !String(row.querySelector('.js-input-name')?.value || '').trim();
+                return nameMissing || quantity <= 0;
+            });
+            if (itemsCount) itemsCount.textContent = String(rows.length);
+            if (productsCount) productsCount.textContent = String(rows.length - customRows.length);
+            if (customCount) customCount.textContent = String(customRows.length);
+            if (incompleteCount) incompleteCount.textContent = String(incompleteRows.length);
+            itemsEmpty?.classList.toggle('hidden', rows.length > 0);
             scheduleDraftSave();
         }
 
@@ -816,8 +819,9 @@ if (root) {
         }
 
         const purchaseOrderForm = document.getElementById('purchaseOrderForm');
-        purchaseOrderForm?.addEventListener('input', scheduleDraftSave);
-        purchaseOrderForm?.addEventListener('change', scheduleDraftSave);
+        purchaseOrderForm?.addEventListener('input', updateRowNumbers);
+        purchaseOrderForm?.addEventListener('change', updateRowNumbers);
+        updateRowNumbers();
         window.addEventListener('beforeunload', () => saveDraft(submissionInProgress));
     });
 }

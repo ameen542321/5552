@@ -89,20 +89,41 @@
             </div>
         </div>
 
+        @if($errors->any())
+            <div id="purchaseOrderFormErrors" class="ui-alert ui-alert-danger-plain" role="alert" aria-live="assertive">
+                <strong class="ui-alert-title">تعذر حفظ الطلبية</strong>
+                <div class="ui-alert-body space-y-1">
+                    @foreach($errors->all() as $error)<p>{{ $error }}</p>@endforeach
+                </div>
+            </div>
+        @endif
+
+        <ol class="grid grid-cols-1 gap-2 sm:grid-cols-3" aria-label="خطوات تجهيز الطلبية">
+            <li class="ui-card-muted p-3"><span class="ui-badge ui-badge-success">1</span> <strong class="ui-title">بيانات الطلبية</strong></li>
+            <li class="ui-card-muted p-3"><span class="ui-badge ui-badge-info">2</span> <strong class="ui-title">إضافة البنود والكميات</strong></li>
+            <li class="ui-card-muted p-3"><span class="ui-badge ui-badge-neutral">3</span> <strong class="ui-title">المراجعة والحفظ</strong></li>
+        </ol>
+
         @if(!$isAccountantContext && !$isEdit)
             <div class="grid grid-cols-1 md:grid-cols-2 gap-3 ui-card p-4">
                 <div>
                     <label class="block ui-text-muted text-sm mb-1">اسم المورد / المندوب <span class="ui-status-danger">(إجباري)</span></label>
-                    <input name="supplier_name" required value="{{ old('supplier_name', $order->supplier_name ?? '') }}" placeholder="اسم المورد أو الموزع" class="w-full rounded-lg ui-surface-muted-bg border ui-border ui-title px-3 py-2 text-sm focus:outline-none ">
+                    <input name="supplier_name" required value="{{ old('supplier_name', $order->supplier_name ?? '') }}" placeholder="اسم المورد أو الموزع" class="ui-input w-full">
                 </div>
                 <div>
                     <label class="block ui-text-muted text-sm mb-1">ملاحظة داخلية <span class="ui-text-muted">(اختياري)</span></label>
-                    <input maxlength="40" name="notes" value="{{ old('notes', $order->notes ?? '') }}" placeholder="لا تظهر للمورد" class="w-full rounded-lg ui-surface-muted-bg border ui-border ui-title px-3 py-2 text-sm focus:outline-none ">
+                    <input maxlength="40" name="notes" value="{{ old('notes', $order->notes ?? '') }}" placeholder="لا تظهر للمورد" class="ui-input w-full">
                 </div>
             </div>
         @endif
 
         <div class="ui-card p-4 space-y-4">
+            <div class="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-live="polite">
+                <div class="ui-card-muted p-3"><span class="ui-text-soft block">عدد البنود</span><strong id="purchaseOrderItemsCount" class="ui-title text-xl">0</strong></div>
+                <div class="ui-card-muted p-3"><span class="ui-text-soft block">منتجات المتجر</span><strong id="purchaseOrderProductsCount" class="ui-title text-xl">0</strong></div>
+                <div class="ui-card-muted p-3"><span class="ui-text-soft block">منتجات مخصصة</span><strong id="purchaseOrderCustomCount" class="ui-title text-xl">0</strong></div>
+                <div class="ui-card-muted p-3"><span class="ui-text-soft block">بنود ناقصة</span><strong id="purchaseOrderIncompleteCount" class="ui-title text-xl">0</strong></div>
+            </div>
             <div class="flex flex-col gap-3">
                 @unless($isAccountantContext)
                     <div class="flex flex-wrap items-center justify-end gap-2 ui-text-caption ui-text-muted" dir="rtl">
@@ -134,7 +155,14 @@
             </div>
 
             <div id="orderItemsList" class="space-y-2"></div>
+            <div id="purchaseOrderItemsEmpty" class="ui-alert ui-alert-info">
+                لم تضف أي بند بعد. ابحث عن منتج من المتجر أو أضف منتجًا مخصصًا لبدء الطلبية.
+            </div>
         </div>
+
+        <nav class="ui-context-action-dock" aria-label="حفظ الطلبية على الجوال">
+            <button type="submit" class="ui-btn ui-btn-primary w-full">{{ $isEdit ? 'حفظ تعديلات الطلبية' : 'مراجعة وحفظ الطلبية' }}</button>
+        </nav>
     </form>
 </div>
 
@@ -146,7 +174,6 @@
     'existingCustomRows' => $existingCustomRows,
     'isEdit' => $isEdit,
     'hasServerErrors' => $errors->any(),
-    'serverError' => $errors->first(),
     'draftKey' => 'purchase-order-draft:' . $draftActorId . ':' . $store->id,
     'hideInventoryValues' => $isAccountantContext,
     'skipConfirmation' => $isAccountantContext,

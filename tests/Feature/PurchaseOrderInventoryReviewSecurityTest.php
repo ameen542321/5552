@@ -119,6 +119,10 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->get(route('accountant.purchase-orders.create'));
 
         $response->assertOk();
+        $response->assertSee('خطوات تجهيز الطلبية');
+        $response->assertSee('عدد البنود');
+        $response->assertSee('بنود ناقصة');
+        $response->assertSee('لم تضف أي بند بعد');
 
         $decodedHtml = html_entity_decode($response->getContent(), ENT_QUOTES | ENT_HTML5);
         $this->assertStringContainsString(
@@ -451,7 +455,7 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->assertDontSee('المحاسب<br><strong class="ui-title">غير محدد', false);
     }
 
-    public function test_opening_a_returned_order_flashes_its_arabic_status_and_note(): void
+    public function test_opening_a_returned_order_shows_a_fixed_arabic_status_and_note(): void
     {
         [$owner, $store] = $this->ownerStoreAndAccountant();
         $order = StorePurchaseOrder::create([
@@ -466,6 +470,7 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
         $this->actingAs($owner)
             ->get(route('user.stores.purchase-orders.show', [$store, $order]))
             ->assertOk()
+            ->assertSee('تنبيه ثابت عن حالة الطلبية')
             ->assertSee('حالة الطلبية: معادة للتعديل — عدّل كمية المنتج', false);
     }
 

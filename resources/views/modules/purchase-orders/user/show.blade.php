@@ -130,10 +130,20 @@
     $expectedOrderTotal = $financialItems->sum(fn ($item) => (float) ($item->cost_price_at_order ?? 0));
     $receivedOrderTotal = $financialItems->sum(fn ($item) => (float) ($item->cost_price_at_receipt ?? $item->cost_price_at_order ?? 0));
     $receiptVarianceTotal = $receivedOrderTotal - $expectedOrderTotal;
+    $fixedWorkflowNotice = in_array($order->workflow_status, ['returned_for_edit', 'returned_after_edit', 'returned_for_count', 'returned_after_count'], true)
+        ? 'حالة الطلبية: '.($workflowLabels[$order->workflow_status] ?? \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::UNKNOWN_LABEL)
+            .(trim((string) $order->inventory_review_note) !== '' ? ' — '.$order->inventory_review_note : '')
+        : null;
 @endphp
 
 @if($isAccountantContext)
 <div class="max-w-7xl mx-auto p-4 md:p-6 space-y-6" dir="rtl">
+    @if($fixedWorkflowNotice)
+        <div class="ui-alert ui-alert-info" role="status" aria-live="polite">
+            <strong class="ui-alert-title">تنبيه ثابت عن حالة الطلبية</strong>
+            <span class="ui-alert-body">{{ $fixedWorkflowNotice }}</span>
+        </div>
+    @endif
     <div id="order-overview" class="ui-card p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="ui-title text-2xl font-black">{{ $orderDisplayName }}</h1>
@@ -314,6 +324,12 @@
 @else
 
 <div class="max-w-7xl mx-auto p-4 sm:p-6 space-y-8" dir="rtl">
+    @if($fixedWorkflowNotice)
+        <div class="ui-alert ui-alert-info" role="status" aria-live="polite">
+            <strong class="ui-alert-title">تنبيه ثابت عن حالة الطلبية</strong>
+            <span class="ui-alert-body">{{ $fixedWorkflowNotice }}</span>
+        </div>
+    @endif
     <a href="{{ route('user.stores.purchase-orders.index', $store->id) }}" class="ui-btn ui-btn-secondary">رجوع إلى الطلبيات</a>
     <details id="order-overview" class="ui-card ui-disclosure">
         <summary class="ui-disclosure-summary p-5 sm:p-6">

@@ -130,7 +130,6 @@ class AccountantPurchaseOrderController extends Controller
     public function show(StorePurchaseOrder $order)
     {
         $store = $this->authorizeOrder($order);
-        $this->flashReturnedOrderStatus($order, $store->user?->name);
         $order->load(['items.product', 'items.matchedProduct', 'items.countAttempts', 'store', 'accountant', 'events']);
         PurchaseOrderItemSorter::sortLoadedItemsByName($order);
 
@@ -239,19 +238,6 @@ class AccountantPurchaseOrderController extends Controller
             'template_key' => 'purchase_order_review',
             'channel' => 'CARLED',
         ]);
-    }
-
-    private function flashReturnedOrderStatus(StorePurchaseOrder $order, ?string $ownerName): void
-    {
-        if (! in_array($order->workflow_status, ['returned_for_edit', 'returned_after_edit', 'returned_for_count', 'returned_after_count'], true)) {
-            return;
-        }
-
-        $message = 'حالة الطلبية: '.PurchaseOrderWorkflow::label($order->workflow_status, $ownerName);
-        if (trim((string) $order->inventory_review_note) !== '') {
-            $message .= ' — '.$order->inventory_review_note;
-        }
-        session()->flash('info', $message);
     }
 
     private function validatedOrderPayload(Request $request, Store $store): array
