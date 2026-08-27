@@ -14,7 +14,6 @@ class PurchaseOrderHealthCheckController extends Controller
         $rows = StorePurchaseOrder::withTrashed()
             ->with(['store:id,name', 'items:id,store_purchase_order_id,quantity_received,excluded_after_count,add_to_owner_purchases,owner_purchase_id,stock_quantity_before,stock_quantity_after,cost_price_before,cost_price_after'])
             ->latest('id')
-            // يسمح الرابط من لوحة المتابعة بفتح نتيجة طلبية واحدة مباشرة.
             ->when($request->integer('order_id'), fn ($query, $orderId) => $query->whereKey($orderId))
             ->limit(500)
             ->get()
