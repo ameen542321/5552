@@ -700,6 +700,23 @@ CREATE TABLE "store_purchase_order_items" (
     CONSTRAINT "store_purchase_order_items_store_purchase_order_id_foreign" FOREIGN KEY ("store_purchase_order_id") REFERENCES "store_purchase_orders" ("id") ON DELETE CASCADE
 );
 
+CREATE TABLE "purchase_order_limit_settings" (
+    "id" INTEGER NOT NULL,
+    "store_id" INTEGER DEFAULT NULL,
+    "weekly_limit" INTEGER NOT NULL DEFAULT 4,
+    "counted_statuses" TEXT NOT NULL,
+    "exception_weekly_limit" INTEGER DEFAULT NULL,
+    "exception_expires_at" timestamp NULL DEFAULT NULL,
+    "exception_reason" text DEFAULT NULL,
+    "exception_admin_id" INTEGER DEFAULT NULL,
+    "created_at" timestamp NULL DEFAULT NULL,
+    "updated_at" timestamp NULL DEFAULT NULL,
+    PRIMARY KEY ("id"),
+    CONSTRAINT "purchase_order_limit_settings_store_id_unique" UNIQUE ("store_id"),
+    CONSTRAINT "purchase_order_limit_settings_store_id_foreign" FOREIGN KEY ("store_id") REFERENCES "stores" ("id") ON DELETE CASCADE,
+    CONSTRAINT "purchase_order_limit_settings_exception_admin_id_foreign" FOREIGN KEY ("exception_admin_id") REFERENCES "users" ("id") ON DELETE SET NULL
+);
+
 CREATE TABLE "store_purchase_orders" (
     "id" INTEGER NOT NULL,
     "store_id" INTEGER NOT NULL,
@@ -724,6 +741,10 @@ CREATE TABLE "store_purchase_orders" (
     "rejected_at" timestamp NULL DEFAULT NULL,
     "received_at" timestamp NULL DEFAULT NULL,
     "approved_at" timestamp NULL DEFAULT NULL,
+    "reversed_at" timestamp NULL DEFAULT NULL,
+    "reversed_by" INTEGER DEFAULT NULL,
+    "reversal_reason" text DEFAULT NULL,
+    "reversal_operation_id" char(36) DEFAULT NULL,
     "approved_business_date" date DEFAULT NULL,
     "cancelled_at" timestamp NULL DEFAULT NULL,
     "created_at" timestamp NULL DEFAULT NULL,
@@ -736,6 +757,8 @@ CREATE TABLE "store_purchase_orders" (
     "deleted_at" timestamp NULL DEFAULT NULL,
     PRIMARY KEY ("id"),
     CONSTRAINT "store_purchase_orders_approval_operation_id_unique" UNIQUE ("approval_operation_id"),
+    CONSTRAINT "store_purchase_orders_reversal_operation_id_unique" UNIQUE ("reversal_operation_id"),
+    CONSTRAINT "store_purchase_orders_reversed_by_foreign" FOREIGN KEY ("reversed_by") REFERENCES "users" ("id") ON DELETE SET NULL,
     CONSTRAINT "store_purchase_orders_accountant_id_foreign" FOREIGN KEY ("accountant_id") REFERENCES "accountants" ("id") ON DELETE SET NULL,
     CONSTRAINT "store_purchase_orders_store_id_foreign" FOREIGN KEY ("store_id") REFERENCES "stores" ("id") ON DELETE CASCADE,
     CONSTRAINT "store_purchase_orders_user_id_foreign" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE

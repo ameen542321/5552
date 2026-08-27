@@ -11,6 +11,7 @@ use App\Modules\PurchaseOrders\Models\StorePurchaseOrderItem;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrderEvent;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrderCountAttempt;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderCostCalculator;
+use App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow;
 use App\Models\User;
 use App\Services\LogService;
 use Carbon\CarbonInterface;
@@ -22,10 +23,12 @@ class StorePurchaseOrderService
     public function __construct(
         private ?PurchaseOrderCostCalculator $costCalculator = null,
         private ?PurchaseOrderNotificationService $notifications = null,
+        private ?PurchaseOrderLimitService $limits = null,
     )
     {
         $this->costCalculator ??= new PurchaseOrderCostCalculator();
         $this->notifications ??= new PurchaseOrderNotificationService();
+        $this->limits ??= new PurchaseOrderLimitService();
     }
 
     /**
@@ -40,13 +43,16 @@ class StorePurchaseOrderService
             Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $weekStartsAt = now()->startOfWeek(CarbonInterface::SATURDAY);
             $weekEndsAt = $weekStartsAt->copy()->addDays(6)->endOfDay();
+            $limitSetting = $this->limits->forStore($store);
+            $weeklyLimit = $limitSetting->effectiveWeeklyLimit();
+            $countedStatuses = $limitSetting->effectiveCountedStatuses();
             $weeklyOrdersCount = StorePurchaseOrder::where('store_id', $store->id)
-                ->where('status', '!=', 'cancelled')
+                ->whereIn('status', $countedStatuses)
                 ->whereBetween('created_at', [$weekStartsAt, $weekEndsAt])
                 ->count();
-            if ($weeklyOrdersCount >= 4) {
+            if ($weeklyOrdersCount >= $weeklyLimit) {
                 throw ValidationException::withMessages([
-                    'order' => 'وصل المتجر إلى الحد الأسبوعي: 4 طلبيات غير ملغاة من السبت إلى الجمعة.',
+                    'order' => 'وصل المتجر إلى الحد الأسبوعي: '.$weeklyLimit.' طلبيات محتسبة من السبت إلى الجمعة.',
                 ]);
             }
 
@@ -82,6 +88,7 @@ class StorePurchaseOrderService
             if ($lockedOrder->status !== 'draft') {
                 throw ValidationException::withMessages(['order' => 'يمكن تعديل الطلبية قبل اعتماد إرسالها فقط.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, 'edit_draft');
 
             $lockedOrder->update([
                 'supplier_name' => array_key_exists('supplier_name', $payload) ? $payload['supplier_name'] : $lockedOrder->supplier_name,
@@ -209,6 +216,7 @@ class StorePurchaseOrderService
             if ($lockedOrder->status !== 'draft') {
                 throw ValidationException::withMessages(['order' => 'يمكن إرسال الطلبية من حالة المسودة فقط.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, 'mark_sent');
 
             $supplierName = array_key_exists('supplier_name', $attributes)
                 ? trim((string) $attributes['supplier_name'])
@@ -267,6 +275,7 @@ class StorePurchaseOrderService
             if (! in_array($lockedOrder->status, ['sent', 'received'], true)) {
                 throw ValidationException::withMessages(['order' => 'لم تعد الطلبية متاحة لمراجعة الاستلام.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, $actorType === 'accountant' ? 'receive_accountant' : 'receive_owner');
             $lockedOrder->load(['items.product', 'items.matchedProduct', 'store']);
             $receiptChanges = [];
 
@@ -414,6 +423,7 @@ class StorePurchaseOrderService
             if ($lockedOrder->workflow_status !== 'pending_inventory_approval') {
                 throw ValidationException::withMessages(['order' => 'يجب أن يعتمد المالك مراجعة تأكيد الاستلام قبل الاعتماد المخزني.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, 'approve');
 
             if (in_array($lockedOrder->inventory_review_status, ['returned_to_accountant', 'count_draft', 'pending_owner_after_count'], true)) {
                 throw ValidationException::withMessages(['order' => 'يجب إكمال مراجعة الجرد أو اعتمادها من المالك قبل الاعتماد المخزني.']);
@@ -597,6 +607,7 @@ class StorePurchaseOrderService
             if ($lockedOrder->status !== 'draft' || $lockedOrder->inventory_review_status === 'approved') {
                 throw ValidationException::withMessages(['order' => 'لم تعد الطلبية متاحة للإعادة للتعديل أو الجرد.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, $returnAction === 'inventory' ? 'return_for_count' : 'return_for_edit');
 
             if ($returnAction === 'edit' && (int) $lockedOrder->edit_return_count >= 3) {
                 $from = $lockedOrder->workflow_status;
@@ -765,6 +776,7 @@ class StorePurchaseOrderService
             if ($lockedOrder->inventory_review_status !== 'pending_owner_after_count') {
                 throw ValidationException::withMessages(['order' => 'يجب إرسال الجرد للمالك قبل اعتماد مراجعة الجرد.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, 'approve_inventory_review');
             if ($lockedOrder->items()->where('inventory_count_required', true)->whereNull('inventory_snapshot_at')->exists()) {
                 throw ValidationException::withMessages(['order' => 'لا يمكن اعتماد مراجعة الجرد قبل حفظ لقطة المخزون لكل المنتجات المطلوبة.']);
             }
@@ -798,6 +810,7 @@ class StorePurchaseOrderService
             if ($lockedOrder->status !== 'draft') {
                 throw ValidationException::withMessages(['order' => 'يمكن رفض الطلبية قبل إرسالها للمورد فقط.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, 'reject');
             $from = $lockedOrder->workflow_status;
             $lockedOrder->update(['workflow_status' => 'rejected', 'rejection_reason' => trim($reason), 'rejected_at' => now()]);
             $this->recordEvent($lockedOrder, 'rejected', $from, 'rejected', 'user', $user->id, $reason);
@@ -813,6 +826,7 @@ class StorePurchaseOrderService
             if ($lockedOrder->workflow_status !== 'rejected') {
                 throw ValidationException::withMessages(['order' => 'يمكن إعادة فتح الطلبية المرفوضة فقط.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, 'reopen');
             $lockedOrder->update(['workflow_status' => 'pending_owner_review']);
             $this->recordEvent($lockedOrder, 'reopened', 'rejected', 'pending_owner_review', 'user', $user->id);
             return $lockedOrder->fresh();
@@ -893,9 +907,77 @@ class StorePurchaseOrderService
             if (! in_array($lockedOrder->status, ['draft', 'sent'], true)) {
                 throw ValidationException::withMessages(['order' => 'يمكن إلغاء الطلبية قبل تسجيل الاستلام فقط.']);
             }
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, 'cancel');
             $from = $lockedOrder->workflow_status;
             $lockedOrder->update(['status' => 'cancelled', 'workflow_status' => 'cancelled', 'cancelled_at' => now()]);
             $this->recordEvent($lockedOrder, 'cancelled', $from, 'cancelled', 'user', $user->id);
+            return $lockedOrder->fresh(['store', 'items.product', 'items.matchedProduct']);
+        });
+    }
+
+    /**
+     * يعكس الأثر المخزني والمالي للطلبية المعتمدة مع إبقاء الوثيقة وسجلها للتدقيق.
+     */
+    public function reverseApproval(StorePurchaseOrder $order, User $admin, string $reason, string $businessDate): StorePurchaseOrder
+    {
+        if (! $admin->isAdmin()) {
+            abort(403);
+        }
+        if (mb_strlen(trim($reason)) < 10) {
+            throw ValidationException::withMessages(['support_note' => 'اكتب سببًا واضحًا للعكس لا يقل عن 10 أحرف.']);
+        }
+
+        return DB::transaction(function () use ($order, $admin, $reason, $businessDate) {
+            $lockedOrder = StorePurchaseOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            PurchaseOrderWorkflow::assertAllows($lockedOrder, 'reverse');
+            if ($lockedOrder->reversal_operation_id) {
+                throw ValidationException::withMessages(['order' => 'سبق عكس اعتماد هذه الطلبية.']);
+            }
+            $lockedOrder->load(['items.product', 'items.matchedProduct']);
+
+            foreach ($lockedOrder->items as $item) {
+                if ($item->excluded_after_count || (float) ($item->quantity_received ?? 0) <= 0) {
+                    continue;
+                }
+
+                if ($item->owner_purchase_id) {
+                    Purchase::whereKey($item->owner_purchase_id)->first()?->delete();
+                    continue;
+                }
+
+                $productId = $item->product_id ?: $item->matched_product_id;
+                if (! $productId) {
+                    continue;
+                }
+                $product = Product::where('store_id', $lockedOrder->store_id)->whereKey($productId)->lockForUpdate()->firstOrFail();
+                $product->decreaseStock(
+                    (float) $item->quantity_received,
+                    'عكس توريد '.$lockedOrder->referenceCode().' — '.trim($reason),
+                    $admin->id,
+                    $item->unit_type ?: 'unit',
+                    $businessDate
+                );
+
+                // لا نستبدل تكلفة غيّرتها عملية أحدث بعد هذه الطلبية.
+                if ($item->cost_price_before !== null && $item->cost_price_after !== null
+                    && abs((float) $product->cost_price - (float) $item->cost_price_after) < 0.0001) {
+                    $product->update(['cost_price' => (float) $item->cost_price_before]);
+                }
+            }
+
+            $operationId = (string) \Illuminate\Support\Str::uuid();
+            $lockedOrder->update([
+                'workflow_status' => 'reversed',
+                'reversed_at' => now(),
+                'reversed_by' => $admin->id,
+                'reversal_reason' => trim($reason),
+                'reversal_operation_id' => $operationId,
+            ]);
+            $this->recordEvent($lockedOrder, 'inventory_approval_reversed', 'approved_and_supplied', 'reversed', 'support', $admin->id, trim($reason), [
+                'business_date' => $businessDate,
+                'reversal_operation_id' => $operationId,
+            ]);
+
             return $lockedOrder->fresh(['store', 'items.product', 'items.matchedProduct']);
         });
     }
