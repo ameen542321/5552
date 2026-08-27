@@ -470,8 +470,13 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
         $this->actingAs($owner)
             ->get(route('user.stores.purchase-orders.show', [$store, $order]))
             ->assertOk()
-            ->assertSee('تنبيه ثابت عن حالة الطلبية')
-            ->assertSee('حالة الطلبية: معادة للتعديل — عدّل كمية المنتج', false);
+            ->assertSee('حالة الطلبية:')
+            ->assertSee('معادة للتعديل')
+            ->assertSee('أعاد المالك الطلبية إلى المحاسب لتعديل البنود.')
+            ->assertSee('ملاحظة المالك:')
+            ->assertSee('عدّل كمية المنتج')
+            ->assertSee('الإرسال متوقف حتى ينهي المحاسب تعديل البنود المطلوبة')
+            ->assertDontSee('الإرسال متوقف حتى اعتماد الجرد');
     }
 
     public function test_owner_sees_inventory_difference_but_accountant_show_page_does_not(): void

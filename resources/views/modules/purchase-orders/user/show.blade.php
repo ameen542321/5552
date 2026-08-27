@@ -130,20 +130,16 @@
     $expectedOrderTotal = $financialItems->sum(fn ($item) => (float) ($item->cost_price_at_order ?? 0));
     $receivedOrderTotal = $financialItems->sum(fn ($item) => (float) ($item->cost_price_at_receipt ?? $item->cost_price_at_order ?? 0));
     $receiptVarianceTotal = $receivedOrderTotal - $expectedOrderTotal;
-    $fixedWorkflowNotice = in_array($order->workflow_status, ['returned_for_edit', 'returned_after_edit', 'returned_for_count', 'returned_after_count'], true)
-        ? 'حالة الطلبية: '.($workflowLabels[$order->workflow_status] ?? \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::UNKNOWN_LABEL)
-            .(trim((string) $order->inventory_review_note) !== '' ? ' — '.$order->inventory_review_note : '')
-        : null;
+    $fixedWorkflowNotice = [
+        'returned_for_edit' => 'أعاد المالك الطلبية إلى المحاسب لتعديل البنود.',
+        'returned_after_edit' => 'أنهى المحاسب التعديل وأعاد الطلبية إلى المالك للمراجعة.',
+        'returned_for_count' => 'أعاد المالك الطلبية إلى المحاسب لإجراء الجرد المطلوب.',
+        'returned_after_count' => 'أنهى المحاسب الجرد وأعاد الطلبية إلى المالك للمراجعة.',
+    ][$order->workflow_status] ?? null;
 @endphp
 
 @if($isAccountantContext)
 <div class="max-w-7xl mx-auto p-4 md:p-6 space-y-6" dir="rtl">
-    @if($fixedWorkflowNotice)
-        <div class="ui-alert ui-alert-info" role="status" aria-live="polite">
-            <strong class="ui-alert-title">تنبيه ثابت عن حالة الطلبية</strong>
-            <span class="ui-alert-body">{{ $fixedWorkflowNotice }}</span>
-        </div>
-    @endif
     <div id="order-overview" class="ui-card p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="ui-title text-2xl font-black">{{ $orderDisplayName }}</h1>
@@ -167,6 +163,15 @@
             @endif
         </div>
     </div>
+    @if($fixedWorkflowNotice)
+        <div class="ui-alert ui-alert-info" role="status" aria-live="polite">
+            <div class="ui-alert-body space-y-1">
+                <p><strong>حالة الطلبية:</strong> {{ $workflowLabels[$order->workflow_status] ?? \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::UNKNOWN_LABEL }}</p>
+                <p>{{ $fixedWorkflowNotice }}</p>
+                <p><strong>ملاحظة المالك:</strong> {{ trim((string) $order->inventory_review_note) !== '' ? $order->inventory_review_note : 'لا توجد ملاحظة إضافية.' }}</p>
+            </div>
+        </div>
+    @endif
     @include('modules.purchase-orders.user.partials.workflow-overview')
     <span id="order-actions"></span>
 
@@ -179,13 +184,6 @@
                     <p>{{ $error }}</p>
                 @endforeach
             </div>
-        </div>
-    @endif
-
-    @if($order->inventory_review_note && in_array($order->inventory_review_status, ['returned_to_accountant', 'count_draft', 'returned_for_edit'], true))
-        <div class="ui-alert ui-alert-info">
-            <strong class="ui-title">ملاحظة {{ $storeOwnerName }}:</strong>
-            <span>{{ $order->inventory_review_note }}</span>
         </div>
     @endif
 
@@ -202,7 +200,7 @@
                         <th>المنتج</th>
                         <th>الكمية المطلوبة</th>
                         <th>الوحدة</th>
-                        <th>ملاحظة</th>
+                        <th><span class="flex items-center gap-2">ملاحظة البند <x-ui.help title="من يكتب ملاحظة البند؟" body="يدخلها منشئ الطلبية أو من يعدلها لتوضيح مواصفات الشراء للمورد والمراجع، مثل اللون أو المقاس أو الموديل. لا تستخدم لكتابة قرار المراجعة؛ قرار المراجعة له حقل مستقل." /></span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -324,12 +322,6 @@
 @else
 
 <div class="max-w-7xl mx-auto p-4 sm:p-6 space-y-8" dir="rtl">
-    @if($fixedWorkflowNotice)
-        <div class="ui-alert ui-alert-info" role="status" aria-live="polite">
-            <strong class="ui-alert-title">تنبيه ثابت عن حالة الطلبية</strong>
-            <span class="ui-alert-body">{{ $fixedWorkflowNotice }}</span>
-        </div>
-    @endif
     <a href="{{ route('user.stores.purchase-orders.index', $store->id) }}" class="ui-btn ui-btn-secondary">رجوع إلى الطلبيات</a>
     <details id="order-overview" class="ui-card ui-disclosure">
         <summary class="ui-disclosure-summary p-5 sm:p-6">
@@ -362,6 +354,16 @@
             @endif
         </div>
     </details>
+
+    @if($fixedWorkflowNotice)
+        <div class="ui-alert ui-alert-info" role="status" aria-live="polite">
+            <div class="ui-alert-body space-y-1">
+                <p><strong>حالة الطلبية:</strong> {{ $workflowLabels[$order->workflow_status] ?? \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::UNKNOWN_LABEL }}</p>
+                <p>{{ $fixedWorkflowNotice }}</p>
+                <p><strong>ملاحظة المالك:</strong> {{ trim((string) $order->inventory_review_note) !== '' ? $order->inventory_review_note : 'لا توجد ملاحظة إضافية.' }}</p>
+            </div>
+        </div>
+    @endif
 
     @include('modules.purchase-orders.user.partials.workflow-overview')
     <span id="order-actions"></span>
@@ -509,7 +511,7 @@
                     </div>
                 @endif
                 <table class="ui-table min-w-[680px]">
-                    <thead><tr><th>المنتج</th><th>نوع البند</th><th>الكمية</th><th>الوحدة</th><th>الملاحظة</th>
+                    <thead><tr><th>المنتج</th><th>نوع البند</th><th>الكمية</th><th>الوحدة</th><th><span class="flex items-center gap-2">ملاحظة البند <x-ui.help title="ملاحظة البند" body="كتبها منشئ الطلبية أو من عدّلها لتحديد مواصفات الشراء مثل اللون أو المقاس أو الموديل. ملاحظة قرار المراجعة تظهر في تنبيه مستقل أعلى الصفحة." /></span></th>
                         @if($order->inventory_review_status !== 'approved')
                             <th>آخر تعديل</th>
                         @endif
@@ -568,8 +570,12 @@
                         </div>
                         <div class="flex justify-end"><button class="ui-btn ui-btn-success">اعتماد وإرسال للمورد</button></div>
                     </form>
+                @elseif(in_array($order->inventory_review_status, ['returned_to_accountant', 'count_draft', 'pending_owner_after_count'], true))
+                    <div class="ui-alert ui-alert-warning"><span class="ui-alert-body">الإرسال متوقف لأن الطلبية ضمن مراجعة الجرد. أكمل الجرد واعتمده أولًا.</span></div>
+                @elseif($order->inventory_review_status === 'returned_for_edit')
+                    <div class="ui-alert ui-alert-info"><span class="ui-alert-body">الإرسال متوقف حتى ينهي المحاسب تعديل البنود المطلوبة ويعيد الطلبية إلى المالك.</span></div>
                 @else
-                    <div class="ui-alert ui-alert-warning flex items-center gap-2"><span class="ui-alert-body">الإرسال متوقف حتى اعتماد الجرد.</span><x-ui.help variant="warning" title="لماذا توقف الإرسال؟" body="أكمل الجرد المطلوب أولًا، وبعد اعتماده يمكنك إرسال الطلبية للمورد." /></div>
+                    <div class="ui-alert ui-alert-info"><span class="ui-alert-body">الإرسال غير متاح في مرحلة المراجعة الحالية. راجع حالة الطلبية والمهمة المطلوبة أعلاه.</span></div>
                 @endif
             </section>
         @elseif($order->status === 'received' && $order->workflow_status === 'pending_inventory_approval')
@@ -1246,8 +1252,8 @@
             </section>
             @if($order->items->contains(fn ($item) => (bool) ($item->add_to_owner_purchases ?? false)))
                 <div class="ui-alert ui-alert-warning">
-                    <strong>الأسطر المختارة كمشتريات مالك</strong>
-                    <x-ui.help variant="warning" title="مشتريات المالك" body="ستُسجل هذه العناصر مباشرة في المشتريات ولن تُضاف إلى المخزون." />
+                    <strong class="ui-alert-title">ماذا يحدث لمشتريات المالك عند الاعتماد؟</strong>
+                    <span class="ui-alert-body">تُسجل كبنود شراء مستقلة باسم المنتج وكميته وتكلفته في يوم العمل المختار. لا تضاف كمياتها إلى المخزون، ولا تغيّر كمية أو تكلفة منتج البيع.</span>
                 </div>
             @endif
             <div class="grid gap-4 lg:grid-cols-2">

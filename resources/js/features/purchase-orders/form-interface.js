@@ -380,7 +380,9 @@ if (root) {
                             ${hasUnitOptions ? unitField : ''}
                         </div>
                         <div class="flex flex-col gap-1">
-                            <input name="items[${idx}][receipt_notes]" maxlength="255" placeholder="ملاحظات إضافية إن وجدت (لون، مقاس...)" class="js-input-notes w-full h-full rounded-lg ui-surface-muted-bg border ui-border ui-title px-3 py-2.5 text-sm focus:outline-none ">
+                            <label class="ui-text-caption font-bold ui-text-soft">ملاحظة البند (اختياري)</label>
+                            <input name="items[${idx}][receipt_notes]" maxlength="255" placeholder="مثال: اللون الأسود، مقاس 40، موديل محدد" class="js-input-notes ui-input w-full h-full">
+                            <span class="ui-text-caption ui-text-muted">يكتبها منشئ الطلبية أو من يعدلها لتوضيح مواصفات الشراء.</span>
                         </div>
                     </div>
 
@@ -505,7 +507,11 @@ if (root) {
                             <input name="custom_items[${idx}][roll_length]" type="number" step="0.01" min="0.01" class="ui-input text-sm" placeholder="مثال: 30">
                         </label>
 
-                        <input name="custom_items[${idx}][receipt_notes]" maxlength="255" placeholder="ملاحظات إضافية (لون، مقاس...)" class="js-input-notes md:col-span-2 w-full rounded-lg ui-surface-muted-bg border ui-border ui-title px-3 py-2.5 text-sm focus:outline-none ">
+                        <label class="md:col-span-2">
+                            <span class="mb-1 block ui-text-caption font-bold ui-text-soft">ملاحظة البند (اختياري)</span>
+                            <input name="custom_items[${idx}][receipt_notes]" maxlength="255" placeholder="مثال: اللون الأسود، مقاس 40، موديل محدد" class="js-input-notes ui-input w-full">
+                            <span class="mt-1 block ui-text-caption ui-text-muted">يكتبها منشئ الطلبية أو من يعدلها لتوضيح مواصفات الشراء.</span>
+                        </label>
 
                         <label class="md:col-span-2 flex items-center gap-2 rounded-lg border ui-border ui-status-warning-bg px-3 py-2 text-sm ui-status-warning">
                             <input type="checkbox" name="custom_items[${idx}][add_to_owner_purchases]" value="1" class="h-4 w-4 rounded ui-border ui-surface-muted-bg ui-status-warning ">
