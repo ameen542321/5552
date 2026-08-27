@@ -45,4 +45,26 @@ class PurchaseOrderWorkflowTest extends TestCase
         $this->assertFalse(PurchaseOrderWorkflow::allowsPdf('inventory-count', 'draft', 'approved'));
         $this->assertFalse(PurchaseOrderWorkflow::allowsPdf('unexpected', 'approved'));
     }
+
+    public function test_consistency_check_detects_mismatched_general_and_workflow_statuses(): void
+    {
+        $order = new \App\Modules\PurchaseOrders\Models\StorePurchaseOrder([
+            'status' => 'approved',
+            'workflow_status' => 'pending_receipt_confirmation',
+        ]);
+
+        $this->assertContains(
+            'الحالة العامة لا تطابق المرحلة التشغيلية.',
+            \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::consistencyIssues($order)
+        );
+    }
+
+    public function test_event_help_explains_reversal_without_claiming_the_order_was_deleted(): void
+    {
+        $help = PurchaseOrderWorkflow::eventHelp('inventory_approval_reversed');
+
+        $this->assertStringContainsString('حركات مقابلة', $help);
+        $this->assertStringContainsString('أبقى الطلبية', $help);
+        $this->assertStringNotContainsString('حذف', $help);
+    }
 }

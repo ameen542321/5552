@@ -16,6 +16,67 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_owner_comprehensive_search_finds_an_order_by_custom_product_name(): void
+    {
+        [$owner, $store] = $this->ownerStoreAndAccountant();
+        $matching = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'supplier_name' => 'مورد أول',
+            'status' => 'draft',
+            'workflow_status' => 'pending_owner_review',
+        ]);
+        StorePurchaseOrderItem::create([
+            'store_purchase_order_id' => $matching->id,
+            'custom_product_name' => 'منتج بحث شامل مميز',
+            'quantity_requested' => 1,
+            'unit_type' => 'unit',
+        ]);
+        StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'supplier_name' => 'مورد غير مطابق',
+            'status' => 'draft',
+            'workflow_status' => 'pending_owner_review',
+        ]);
+
+        $this->actingAs($owner)->get(route('user.stores.purchase-orders.index', [$store, 'search' => 'بحث شامل مميز']))
+            ->assertOk()
+            ->assertSee($matching->referenceCode())
+            ->assertDontSee('مورد غير مطابق');
+    }
+
+    public function test_owner_show_displays_stage_tasks_sections_and_financial_summary_before_approval(): void
+    {
+        [$owner, $store] = $this->ownerStoreAndAccountant();
+        $order = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'supplier_name' => 'مورد الملخص',
+            'status' => 'received',
+            'workflow_status' => 'pending_inventory_approval',
+            'received_at' => now(),
+        ]);
+        StorePurchaseOrderItem::create([
+            'store_purchase_order_id' => $order->id,
+            'custom_product_name' => 'منتج الملخص',
+            'quantity_requested' => 2,
+            'quantity_received' => 2,
+            'unit_type' => 'unit',
+            'cost_price_at_order' => 20,
+            'cost_price_at_receipt' => 24,
+            'add_to_owner_purchases' => true,
+        ]);
+
+        $this->actingAs($owner)->get(route('user.stores.purchase-orders.show', [$store, $order]))
+            ->assertOk()
+            ->assertSee('مراحل الطلبية')
+            ->assertSee('مهمتك الآن')
+            ->assertSee('الملخص المالي قبل الاعتماد')
+            ->assertSee('24.00 ر.س')
+            ->assertSee('4.00 ر.س');
+    }
+
     public function test_accountant_create_page_does_not_render_stock_or_cost_values(): void
     {
         [$owner, $store, $accountant] = $this->ownerStoreAndAccountant();

@@ -49,9 +49,13 @@
         </div>
     @endif
 
-    <form id="filterForm" data-purchase-order-filter action="{{ $indexRoute }}" method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[1fr_1fr_1fr_auto] gap-4 ui-card p-4">
+    <form id="filterForm" data-purchase-order-filter action="{{ $indexRoute }}" method="GET" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4 ui-card p-4">
         <input type="hidden" id="currentStatus" name="status" value="{{ $status }}">
 
+        <div>
+            <label for="purchase_order_search" class="block ui-text-caption ui-text-soft mb-1 font-bold cursor-pointer">بحث شامل</label>
+            <input type="search" id="purchase_order_search" name="search" value="{{ $search ?? '' }}" class="ui-input w-full" placeholder="رقم، مورد، أو اسم منتج">
+        </div>
         <div>
             <label for="date_from" class="block ui-text-caption ui-text-soft mb-1 font-bold cursor-pointer">من تاريخ</label>
             <input type="date" id="date_from" name="date_from" value="{{ $dateFromValue }}" class="ui-input w-full">
@@ -105,14 +109,18 @@
                             @if($order->trashed())
                                 <form method="POST" action="{{ $restoreRoute($order) }}">
                                     @csrf @method('PATCH')
+                                    <input type="hidden" name="support_note" value="استعادة الطلبية المحذوفة بعد مراجعة تذكرة الدعم">
                                     <button type="submit" class="ui-btn ui-btn-success px-4 py-2 ui-text-caption">استعادة الطلبية</button>
                                 </form>
                             @endif
-                            <form method="POST" action="{{ route('user.stores.purchase-orders.support-purge', [$store->id, $order->id]) }}" data-ui-confirm="سيحذف الدعم الطلبية وملفاتها التابعة نهائيًا مع الحفاظ على المنتجات وحركات المخزون." data-ui-confirm-title="حذف نهائي بواسطة الدعم؟">
+                            @if(!in_array($order->status, ['received', 'approved'], true))
+                            <form method="POST" action="{{ route('user.stores.purchase-orders.support-purge', [$store->id, $order->id]) }}" data-ui-confirm="سيحذف الدعم الطلبية وملفاتها التابعة نهائيًا." data-ui-confirm-title="حذف نهائي بواسطة الدعم؟">
                                 @csrf @method('DELETE')
                                 <input type="hidden" name="confirmation" value="{{ $order->referenceCode() }}">
+                                <input type="hidden" name="support_note" value="حذف إداري نهائي بعد مراجعة تذكرة الدعم">
                                 <button type="submit" class="ui-btn ui-btn-danger px-4 py-2 ui-text-caption">حذف نهائي</button>
                             </form>
+                            @endif
                         @elseif(!$isAccountantContext && in_array($order->status, ['draft','sent'], true))
                             {{-- إصلاح مطبق: تأكيدات أوامر الشراء ومنع النقر المزدوج تستخدم عقد الحوارات المركزي. --}}
                             <form method="POST" action="{{ $cancelRoute($order) }}"
@@ -153,7 +161,7 @@
     </div>
 
     <div class="mt-4">
-        {{ $orders->appends(['status'=>$status,'date_from'=>$dateFromValue,'date_to'=>$dateToValue])->links() }}
+        {{ $orders->appends(['status'=>$status,'workflow_status'=>$workflowStatus,'search'=>$search ?? '','date_from'=>$dateFromValue,'date_to'=>$dateToValue])->links() }}
     </div>
 </div>
 

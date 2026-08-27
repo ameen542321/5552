@@ -106,21 +106,32 @@ class PurchaseOrderTechnicalSupportTest extends TestCase
         )->assertForbidden();
     }
 
-    public function test_blank_status_reason_uses_support_ticket_reference(): void
+    public function test_status_correction_requires_an_explicit_administrative_reason(): void
     {
         [$owner, $store, $order] = $this->orderFixture();
         $this->fakeOwnerSupportSession($owner);
 
-        $this->actingAs($owner)->patch(
+        $this->actingAs($owner)->from(route('user.stores.purchase-orders.show', [$store, $order]))->patch(
             route('user.stores.purchase-orders.support-status', [$store, $order]),
             ['workflow_status' => 'returned_for_edit', 'support_note' => '']
-        )->assertRedirect();
+        )->assertSessionHasErrors('support_note');
 
-        $this->assertDatabaseHas('store_purchase_order_events', [
-            'store_purchase_order_id' => $order->id,
-            'event' => 'support_status_corrected',
-            'note' => 'تذكرة الدعم SUP-TEST-1',
-        ]);
+        $this->assertDatabaseMissing('store_purchase_order_events', ['store_purchase_order_id' => $order->id, 'event' => 'support_status_corrected']);
+    }
+
+    public function test_received_and_approved_orders_cannot_be_permanently_deleted(): void
+    {
+        [$owner, $store, $order] = $this->orderFixture();
+        $this->fakeOwnerSupportSession($owner);
+
+        foreach (['received', 'approved'] as $status) {
+            $order->update(['status' => $status, 'workflow_status' => $status === 'approved' ? 'approved_and_supplied' : 'pending_inventory_approval']);
+            $this->actingAs($owner)->delete(
+                route('user.stores.purchase-orders.support-purge', [$store, $order]),
+                ['confirmation' => $order->referenceCode(), 'support_note' => 'منع حذف السجل المستلم أو المعتمد']
+            )->assertSessionHasErrors('order');
+            $this->assertDatabaseHas('store_purchase_orders', ['id' => $order->id]);
+        }
     }
 
     public function test_support_can_fix_an_incorrect_approved_label_when_inventory_approval_never_ran(): void
@@ -153,7 +164,8 @@ class PurchaseOrderTechnicalSupportTest extends TestCase
             ->assertSee('استعادة الطلبية');
 
         $this->actingAs($owner)->patch(
-            route('user.stores.purchase-orders.support-restore', [$store, $order->id])
+            route('user.stores.purchase-orders.support-restore', [$store, $order->id]),
+            ['support_note' => 'استعادة الطلبية بعد مراجعة سبب الحذف']
         )->assertRedirect();
 
         $this->assertDatabaseHas('store_purchase_orders', ['id' => $order->id, 'deleted_at' => null]);

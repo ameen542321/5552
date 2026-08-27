@@ -32,6 +32,7 @@ class AccountantPurchaseOrderController extends Controller
         $status = in_array($request->get('status'), $statuses, true) ? $request->get('status') : null;
         $workflowStatuses = array_keys(PurchaseOrderWorkflow::filterLabels($store->user?->name));
         $workflowStatus = in_array($request->get('workflow_status'), $workflowStatuses, true) ? $request->get('workflow_status') : null;
+        $search = trim((string) $request->get('search', ''));
         $dateFrom = $request->filled('date_from') ? $request->date('date_from')->startOfDay() : now()->startOfMonth();
         $dateTo = $request->filled('date_to') ? $request->date('date_to')->endOfDay() : now()->endOfMonth();
 
@@ -44,6 +45,17 @@ class AccountantPurchaseOrderController extends Controller
             ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($workflowStatus, fn ($query) => $query->where('workflow_status', $workflowStatus))
+            ->when($search !== '', function ($query) use ($search): void {
+                $query->where(function ($nested) use ($search): void {
+                    $nested->where('supplier_name', 'like', '%'.$search.'%')
+                        ->orWhere('id', is_numeric($search) ? (int) $search : -1)
+                        ->orWhereHas('items', function ($items) use ($search): void {
+                            $items->where('custom_product_name', 'like', '%'.$search.'%')
+                                ->orWhereHas('product', fn ($product) => $product->where('name', 'like', '%'.$search.'%'))
+                                ->orWhereHas('matchedProduct', fn ($product) => $product->where('name', 'like', '%'.$search.'%'));
+                        });
+                });
+            })
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -53,6 +65,7 @@ class AccountantPurchaseOrderController extends Controller
             'orders' => $orders,
             'status' => $status,
             'workflowStatus' => $workflowStatus,
+            'search' => $search,
             'statuses' => $statuses,
             'dateFromValue' => $dateFrom->format('Y-m-d'),
             'dateToValue' => $dateTo->format('Y-m-d'),

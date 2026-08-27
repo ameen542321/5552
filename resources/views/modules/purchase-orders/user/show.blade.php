@@ -69,11 +69,65 @@
         ->where('event', 'count_approved')
         ->sortByDesc('created_at')
         ->first();
+    // بيانات عرض فقط لبناء شريط المرحلة وصندوق المهمة والملخص المالي دون تعديل أي قيمة محفوظة.
+    $stageSteps = [
+        ['label' => 'المراجعة', 'anchor' => 'order-overview'],
+        ['label' => 'الإرسال', 'anchor' => 'order-actions'],
+        ['label' => 'الاستلام', 'anchor' => 'receipt-review'],
+        ['label' => 'الاعتماد', 'anchor' => 'inventory-approval'],
+    ];
+    $currentStageIndex = match ($order->status) {
+        'draft' => 0,
+        'sent' => 1,
+        'received' => 2,
+        'approved' => 3,
+        default => -1,
+    };
+    $taskTitle = 'متابعة حالة الطلبية';
+    $taskBody = 'لا يوجد إجراء مطلوب منك الآن؛ راقب المرحلة الحالية وسجل الأحداث.';
+    $taskAnchor = 'order-overview';
+    if ($isAccountantContext) {
+        if (in_array($order->inventory_review_status, ['returned_to_accountant', 'count_draft'], true)) {
+            $taskTitle = 'أكمل جرد المنتجات المطلوبة';
+            $taskBody = 'أدخل الكميات الفعلية ثم أرسل نتيجة الجرد إلى المالك.';
+            $taskAnchor = 'order-actions';
+        } elseif ($order->status === 'sent') {
+            $taskTitle = 'سجل ما وصل من المورد';
+            $taskBody = 'طابق الكميات والتكاليف الفعلية ثم أرسل تأكيد الاستلام إلى المالك.';
+            $taskAnchor = 'receipt-confirmation';
+        } elseif ($order->inventory_review_status === 'returned_for_edit') {
+            $taskTitle = 'عدل بنود الطلبية';
+            $taskBody = 'راجع ملاحظة المالك وصحح البنود المطلوبة ثم احفظ التعديل.';
+            $taskAnchor = 'order-actions';
+        }
+    } else {
+        if ($order->status === 'draft') {
+            $taskTitle = 'راجع المسودة وحدد الخطوة التالية';
+            $taskBody = 'راجع البنود ثم أرسلها للمورد، أو أعدها للمحاسب للتعديل أو الجرد.';
+            $taskAnchor = 'order-actions';
+        } elseif ($isOwnerReceiptReview) {
+            $taskTitle = 'راجع تأكيد الاستلام';
+            $taskBody = 'ابدأ بالفروقات والبنود التي عدلها المحاسب قبل المتابعة.';
+            $taskAnchor = 'receipt-review';
+        } elseif ($isInventoryApproval) {
+            $taskTitle = 'راجع الملخص ثم اعتمد المخزون';
+            $taskBody = 'تحقق من إجمالي التكلفة والكميات وتحديثات التكلفة قبل الاعتماد النهائي.';
+            $taskAnchor = 'inventory-approval';
+        } elseif ($order->status === 'sent') {
+            $taskTitle = 'بانتظار وصول الطلبية';
+            $taskBody = 'يمكن مشاركة نسخة المورد، ثم يسجل المالك أو المحاسب ما وصل فعليًا.';
+            $taskAnchor = 'receipt-review';
+        }
+    }
+    $financialItems = $order->items->where('excluded_after_count', false);
+    $expectedOrderTotal = $financialItems->sum(fn ($item) => (float) ($item->cost_price_at_order ?? 0));
+    $receivedOrderTotal = $financialItems->sum(fn ($item) => (float) ($item->cost_price_at_receipt ?? $item->cost_price_at_order ?? 0));
+    $receiptVarianceTotal = $receivedOrderTotal - $expectedOrderTotal;
 @endphp
 
 @if($isAccountantContext)
 <div class="max-w-7xl mx-auto p-4 md:p-6 space-y-6" dir="rtl">
-    <div class="ui-card p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div id="order-overview" class="ui-card p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="ui-title text-2xl font-black">{{ $orderDisplayName }}</h1>
             <p class="ui-text-soft mt-1">المرحلة الحالية: {{ $workflowLabels[$order->workflow_status] ?? \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::UNKNOWN_LABEL }}</p>
@@ -96,6 +150,8 @@
             @endif
         </div>
     </div>
+    @include('modules.purchase-orders.user.partials.workflow-overview')
+    <span id="order-actions"></span>
 
     {{-- نعرض كل أسباب فشل الحفظ للمحاسب حتى لا يبدو زر تأكيد الاستلام وكأنه لم يستجب. --}}
     @if($errors->any())
@@ -224,16 +280,24 @@
 
     @if($order->events->isNotEmpty() && !in_array($order->workflow_status, ['returned_for_edit', 'returned_for_count', 'pending_receipt_confirmation'], true))
         <div class="ui-card p-5 space-y-3">
-            <h2 class="ui-title text-lg font-black">سجل الطلبية</h2>
+            <div class="flex items-center gap-2">
+                <h2 class="ui-title text-lg font-black">سجل الطلبية</h2>
+                <x-ui.help title="سجل أحداث الطلبية" body="يعرض ما حدث بالترتيب مع وقت التنفيذ. التعديل أو الاستلام لا يغير المخزون؛ يتغير المخزون عند الاعتماد النهائي فقط، وعملية العكس تنشئ حركة مقابلة مع إبقاء السجل." />
+            </div>
             @foreach($order->events->sortByDesc('created_at') as $event)
                 <div class="ui-card-muted p-3">
-                    @if($event->event === 'item_added')
-                        <span>أضاف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}</span>
-                    @elseif($event->event === 'item_deleted')
-                        <span>حذف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}</span>
-                    @else
-                        <span>{{ $event->note ?: ($workflowLabels[$event->to_status] ?? 'تحديث الطلبية') }}</span>
-                    @endif
+                    <div class="flex items-start gap-2">
+                        <span class="flex-1">
+                            @if($event->event === 'item_added')
+                                أضاف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}
+                            @elseif($event->event === 'item_deleted')
+                                حذف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}
+                            @else
+                                {{ $event->note ?: ($workflowLabels[$event->to_status] ?? 'تحديث الطلبية') }}
+                            @endif
+                        </span>
+                        <x-ui.help title="ماذا يعني هذا الحدث؟" :body="\App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::eventHelp($event->event)" />
+                    </div>
                     <time class="block ui-text-muted">{{ $event->created_at?->format('Y-m-d H:i') }}</time>
                 </div>
             @endforeach
@@ -244,7 +308,7 @@
 
 <div class="max-w-7xl mx-auto p-4 sm:p-6 space-y-8" dir="rtl">
     <a href="{{ route('user.stores.purchase-orders.index', $store->id) }}" class="ui-btn ui-btn-secondary">رجوع إلى الطلبيات</a>
-    <details class="ui-card ui-disclosure">
+    <details id="order-overview" class="ui-card ui-disclosure">
         <summary class="ui-disclosure-summary p-5 sm:p-6">
             <span class="min-w-0">
                 <span class="ui-title text-2xl sm:text-3xl font-black break-words">{{ $isOwnerReceiptReview ? 'مراجعة تأكيد الاستلام' : ($isInventoryApproval ? 'الاعتماد المخزني' : $orderDisplayName) }}</span>
@@ -271,9 +335,13 @@
             @endif
             @if($order->status === 'approved' && $order->approved_business_date)
                 <p class="ui-text-soft">تاريخ اعتماد المخزون: <strong class="ui-title">{{ $order->approved_business_date->format('Y-m-d') }}</strong></p>
+                <p class="ui-text-soft">وقت الاعتماد الفعلي للمراجعة: <strong class="ui-title" dir="ltr">{{ $order->approved_at?->format('Y-m-d H:i') ?: '—' }}</strong></p>
             @endif
         </div>
     </details>
+
+    @include('modules.purchase-orders.user.partials.workflow-overview')
+    <span id="order-actions"></span>
 
     @if($isTechnicalSupport)
         @include('modules.purchase-orders.user.partials.support-tools')
@@ -587,7 +655,7 @@
     @endif
 
     @if(in_array($order->status, ['approved','cancelled'], true) && $order->inventory_review_status !== 'pending_owner_after_count')
-        <div class="py-4 space-y-5">
+        <div id="order-items" class="py-4 space-y-5">
             <div class="pb-2">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
@@ -1102,6 +1170,17 @@
         <span id="inventory-approval"></span>
         <form id="approveOrderForm" data-order-id="{{ $order->id }}" method="POST" action="{{ route('user.stores.purchase-orders.approve', [$store->id, $order->id]) }}" class="space-y-6">
             @csrf
+            <section class="ui-card p-5 space-y-4" aria-labelledby="financialApprovalSummaryTitle">
+                <div class="flex items-center gap-2">
+                    <h2 id="financialApprovalSummaryTitle" class="ui-title text-xl font-black">الملخص المالي قبل الاعتماد</h2>
+                    <x-ui.help variant="warning" title="مراجعة المبالغ" body="يعرض تكلفة الطلب المحفوظة وتكلفة الاستلام والفرق بينهما. هذه البطاقة للعرض فقط؛ تنفيذ التغيير المخزني والمالي يحدث بعد ضغط اعتماد الطلبية." />
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div class="ui-card-muted p-4"><span class="ui-text-soft block">تكلفة الطلب المتوقعة</span><strong class="ui-title text-2xl">{{ number_format($expectedOrderTotal, 2) }} ر.س</strong></div>
+                    <div class="ui-card-muted p-4"><span class="ui-text-soft block">تكلفة الاستلام</span><strong class="ui-title text-2xl">{{ number_format($receivedOrderTotal, 2) }} ر.س</strong></div>
+                    <div class="ui-card-muted p-4"><span class="ui-text-soft block">فرق التكلفة</span><strong class="{{ $receiptVarianceTotal > 0 ? 'ui-status-danger' : ($receiptVarianceTotal < 0 ? 'ui-status-success' : 'ui-title') }} text-2xl">{{ number_format($receiptVarianceTotal, 2) }} ر.س</strong></div>
+                </div>
+            </section>
             <section class="ui-card p-4">
                 <span class="ui-text-soft block">تاريخ اعتماد المالك للجرد</span>
                 <strong class="ui-title">{{ $latestCountApprovalEvent?->created_at?->format('Y-m-d H:i') ?: 'لم يطلب جرد' }}</strong>
