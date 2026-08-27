@@ -91,7 +91,12 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->assertSee('مهمتك الآن')
             ->assertSee('مهام المالك')
             ->assertSee('aria-current="step"', false)
+            ->assertSee('قرار المالك')
+            ->assertSee('قبل وبعد الاستلام')
+            ->assertSee('data-receipt-filter="attention"', false)
+            ->assertSee('ui-context-action-dock', false)
             ->assertSee('الملخص المالي قبل الاعتماد')
+            ->assertSee('اعتماد وإضافة 0 منتج للمخزون')
             ->assertSee('24.00 ر.س')
             ->assertSee('4.00 ر.س');
     }

@@ -328,6 +328,24 @@ html.ui-font-loading body > :not(.ui-page-loader) {
         }
     }
 
+    .ui-context-action-dock {
+        display: none;
+    }
+
+    @media (max-width: 767px) {
+        .ui-context-action-dock {
+            position: sticky;
+            bottom: .75rem;
+            z-index: 30;
+            display: block;
+            border: 1px solid var(--ui-border);
+            border-radius: 1rem;
+            background: var(--ui-surface);
+            padding: .75rem;
+            box-shadow: 0 12px 30px rgba(2, 6, 23, .24);
+        }
+    }
+
     .ui-purchase-item-card {
         display: flex;
         flex-direction: column;

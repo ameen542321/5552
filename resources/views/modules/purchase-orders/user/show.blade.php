@@ -65,6 +65,13 @@
     $receiptReviewVarianceCount = $receiptReviewItems->filter(fn ($item) => abs((float) $item->price_variance) > 0.01)->count();
     $receiptReviewUnresolvedCount = $receiptReviewItems->filter(fn ($item) => ! $item->product_id && ! $item->matched_product_id && ! $item->add_to_owner_purchases)->count();
     $receiptReviewOwnerPurchaseCount = $receiptReviewItems->where('add_to_owner_purchases', true)->count();
+    $receiptReviewAttentionCount = $receiptReviewItems->filter(function ($item) use ($accountantReceiptChanges): bool {
+        return $accountantReceiptChanges->has((string) $item->id)
+            || abs((float) $item->price_variance) > 0.01
+            || (! $item->product_id && ! $item->matched_product_id && ! $item->add_to_owner_purchases)
+            || (bool) $item->add_to_owner_purchases;
+    })->count();
+    $receiptReviewReady = $receiptReviewUnresolvedCount === 0;
     $latestCountApprovalEvent = $order->events
         ->where('event', 'count_approved')
         ->sortByDesc('created_at')
@@ -912,6 +919,24 @@
         @csrf
 
         @if($isOwnerReceiptReview)
+            <section class="ui-card p-5 space-y-4" aria-labelledby="ownerDecisionReadinessTitle">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <span class="ui-badge {{ $receiptReviewReady ? 'ui-badge-success' : 'ui-badge-danger' }}">{{ $receiptReviewReady ? 'جاهزة لاتخاذ القرار' : 'تحتاج معالجة قبل المتابعة' }}</span>
+                        <h2 id="ownerDecisionReadinessTitle" class="ui-title text-xl font-black mt-2">قرار المالك</h2>
+                        <p class="ui-text-soft mt-1">
+                            @if($receiptReviewReady)
+                                لا توجد منتجات غير مربوطة. راجع {{ $receiptReviewAttentionCount }} بندًا مميزًا ثم اعتمد مراجعة الاستلام.
+                            @else
+                                يوجد {{ $receiptReviewUnresolvedCount }} بند غير مربوط بمنتج أو مشتريات المالك؛ عالجه قبل المتابعة.
+                            @endif
+                        </p>
+                    </div>
+                    @if($receiptReviewAttentionCount > 0)
+                        <button type="button" class="ui-btn ui-btn-primary" data-receipt-filter="attention" aria-pressed="false">عرض ما يحتاج مراجعة ({{ $receiptReviewAttentionCount }})</button>
+                    @endif
+                </div>
+            </section>
             <section class="ui-card p-5 space-y-5" aria-labelledby="receiptReviewSummaryTitle">
                 <div>
                     <h2 id="receiptReviewSummaryTitle" class="ui-title text-xl font-black">ملخص مراجعة الاستلام</h2>
@@ -1022,7 +1047,8 @@
                     data-changed="{{ $hasAccountantReceiptChange ? '1' : '0' }}"
                     data-variance="{{ abs($variance) > 0.01 ? '1' : '0' }}"
                     data-unresolved="{{ ! $item->product_id && ! $item->matched_product_id && ! $item->add_to_owner_purchases ? '1' : '0' }}"
-                    data-owner="{{ $item->add_to_owner_purchases ? '1' : '0' }}">
+                    data-owner="{{ $item->add_to_owner_purchases ? '1' : '0' }}"
+                    data-attention="{{ $hasAccountantReceiptChange || abs($variance) > 0.01 || (! $item->product_id && ! $item->matched_product_id && ! $item->add_to_owner_purchases) || $item->add_to_owner_purchases ? '1' : '0' }}">
                     <summary class="ui-disclosure-summary">
                         <span class="flex items-center gap-2 min-w-0">
                             <strong class="ui-title break-words">{{ $item->productName() }}</strong>
@@ -1077,6 +1103,23 @@
                                 <span class="ui-title font-bold">{{ number_format((float) $item->cost_price_at_order, 2) }} ر.س</span>
                             </div>
                         </div>
+
+                        @if($isOwnerReceiptReview)
+                            @php
+                                $comparisonReceived = (float) ($item->quantity_received ?? $item->quantity_requested ?? 0);
+                                $comparisonQuantityDifference = $comparisonReceived - (float) $item->quantity_requested;
+                                $comparisonReceiptCost = (float) ($item->cost_price_at_receipt ?? $item->cost_price_at_order ?? 0);
+                                $comparisonCostDifference = $comparisonReceiptCost - (float) $item->cost_price_at_order;
+                            @endphp
+                            <div class="ui-card-muted p-3 space-y-2" aria-label="مقارنة المطلوب بالمستلم">
+                                <strong class="ui-title block">قبل وبعد الاستلام</strong>
+                                <div class="grid grid-cols-3 gap-2 ui-text-caption">
+                                    <span class="ui-text-soft">البيان</span><span class="ui-text-soft">المطلوب</span><span class="ui-text-soft">المستلم / الفرق</span>
+                                    <span class="ui-title">الكمية</span><span>{{ number_format((float) $item->quantity_requested, 2) }}</span><span>{{ number_format($comparisonReceived, 2) }} ({{ $comparisonQuantityDifference > 0 ? '+' : '' }}{{ number_format($comparisonQuantityDifference, 2) }})</span>
+                                    <span class="ui-title">التكلفة</span><span>{{ number_format((float) $item->cost_price_at_order, 2) }}</span><span>{{ number_format($comparisonReceiptCost, 2) }} ({{ $comparisonCostDifference > 0 ? '+' : '' }}{{ number_format($comparisonCostDifference, 2) }})</span>
+                                </div>
+                            </div>
+                        @endif
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                             <div class="space-y-1.5">
@@ -1246,11 +1289,19 @@
             <div class="pt-4 flex justify-end">
                 <button id="approveOrderButton" class="ui-btn ui-btn-primary ui-btn-borderless w-full md:w-auto px-10 disabled:cursor-not-allowed font-black py-4 flex justify-center items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    <span class="js-approve-button-text">اعتماد الطلبية</span>
+                    <span class="js-approve-button-text">اعتماد وإضافة {{ $financialItems->where('add_to_owner_purchases', false)->count() }} منتج للمخزون</span>
                 </button>
             </div>
             </section>
         </form>
+    @endif
+
+    @if($isOwnerReceiptReview || $isInventoryApproval)
+        <nav class="ui-context-action-dock" aria-label="إجراء المالك الحالي">
+            <a href="#{{ $isInventoryApproval ? 'inventory-approval' : 'receipt-review' }}" class="ui-btn ui-btn-primary w-full">
+                {{ $isInventoryApproval ? 'مراجعة الاعتماد النهائي' : 'مراجعة البنود التي تحتاج قرارًا' }}
+            </a>
+        </nav>
     @endif
 </div>
 
@@ -1509,6 +1560,13 @@
 
 <div class="hidden" data-purchase-order-show-config="{{ json_encode([
     'stockApprovalCostChanges' => $stockApprovalCostChanges,
+    'approvalSummary' => [
+        'inventory_items' => $financialItems->where('add_to_owner_purchases', false)->count(),
+        'owner_purchase_items' => $financialItems->where('add_to_owner_purchases', true)->count(),
+        'received_total' => $receivedOrderTotal,
+        'variance_total' => $receiptVarianceTotal,
+        'business_date' => $currentBusinessDate ?? null,
+    ],
     'orderStatus' => $order->status,
     'draftKey' => 'purchase-order-draft:' . auth()->id() . ':' . $store->id,
     'clearDraft' => session('success') === 'تم تجهيز الطلبية كمسودة. راجعها ثم اضغط اعتماد الطلبية لإرسالها للمورد.',
