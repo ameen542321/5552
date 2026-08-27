@@ -77,6 +77,14 @@
             </a>
         </li>
 
+        <li>
+            <a href="{{ route('admin.purchase-orders.index') }}"
+                class="ui-sidebar-link {{ request()->routeIs('admin.purchase-orders.*') ? 'ui-sidebar-link-active' : 'ui-sidebar-link-rest' }}">
+                <i class="fa-solid fa-truck-ramp-box w-6 text-lg"></i>
+                <span x-show="open" x-cloak>متابعة طلبيات التوريد</span>
+            </a>
+        </li>
+
         {{-- إدارة المستخدمين --}}
         <li x-data="{ dropUsers: {{ request()->routeIs('admin.users.*') ? 'true' : 'false' }} }">
 

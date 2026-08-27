@@ -5,6 +5,7 @@ namespace Tests\Unit;
 use App\Models\Store;
 use App\Models\User;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrder;
+use App\Modules\PurchaseOrders\Models\PurchaseOrderLimitSetting;
 use App\Modules\PurchaseOrders\Services\StorePurchaseOrderService;
 use Tests\Concerns\RefreshDatabase;
 use Illuminate\Validation\ValidationException;
@@ -49,6 +50,26 @@ class StorePurchaseOrderProtectionTest extends TestCase
         $created = $service->createOrder($store, $owner, $payload);
 
         $this->assertSame('draft', $created->status);
+    }
+
+    public function test_store_specific_limit_and_counted_statuses_control_the_weekly_guard(): void
+    {
+        $owner = User::factory()->create();
+        $store = Store::factory()->create(['user_id' => $owner->id]);
+        PurchaseOrderLimitSetting::create([
+            'store_id' => $store->id,
+            'weekly_limit' => 1,
+            'counted_statuses' => ['sent'],
+        ]);
+        StorePurchaseOrder::create(['store_id' => $store->id, 'user_id' => $owner->id, 'status' => 'draft', 'workflow_status' => 'pending_owner_review']);
+
+        $payload = ['items' => [], 'custom_items' => [['custom_product_name' => 'منتج الحد', 'quantity_requested' => 1, 'unit_type' => 'unit']]];
+        $created = (new StorePurchaseOrderService())->createOrder($store, $owner, $payload);
+        $this->assertSame('draft', $created->status);
+
+        StorePurchaseOrder::where('store_id', $store->id)->update(['status' => 'sent', 'workflow_status' => 'pending_receipt_confirmation']);
+        $this->expectException(ValidationException::class);
+        (new StorePurchaseOrderService())->createOrder($store, $owner, $payload);
     }
 
     public function test_fourth_return_for_edit_cancels_the_entire_order(): void
