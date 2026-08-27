@@ -45,4 +45,17 @@ class PurchaseOrderWorkflowTest extends TestCase
         $this->assertFalse(PurchaseOrderWorkflow::allowsPdf('inventory-count', 'draft', 'approved'));
         $this->assertFalse(PurchaseOrderWorkflow::allowsPdf('unexpected', 'approved'));
     }
+
+    public function test_consistency_check_detects_mismatched_general_and_workflow_statuses(): void
+    {
+        $order = new \App\Modules\PurchaseOrders\Models\StorePurchaseOrder([
+            'status' => 'approved',
+            'workflow_status' => 'pending_receipt_confirmation',
+        ]);
+
+        $this->assertContains(
+            'الحالة العامة لا تطابق المرحلة التشغيلية.',
+            \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::consistencyIssues($order)
+        );
+    }
 }

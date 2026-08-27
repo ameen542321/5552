@@ -16,6 +16,7 @@ class StorePurchaseOrder extends Model
         'sent_at', 'inventory_returned_at', 'inventory_draft_saved_at', 'inventory_submitted_at', 'inventory_submitted_by',
         'received_at', 'approved_at', 'approved_business_date', 'cancelled_at', 'rejection_reason', 'rejected_at',
         'receipt_actor_type', 'receipt_actor_id', 'approval_operation_id', 'final_notice_until',
+        'reversed_at', 'reversed_by', 'reversal_reason', 'reversal_operation_id',
     ];
 
     protected $casts = [
@@ -30,6 +31,7 @@ class StorePurchaseOrder extends Model
         'cancelled_at' => 'datetime',
         'rejected_at' => 'datetime',
         'final_notice_until' => 'datetime',
+        'reversed_at' => 'datetime',
     ];
 
     public function displayName(): string
