@@ -4,12 +4,17 @@
         <h2 id="purchaseOrderProgressTitle" class="ui-title text-lg font-black">مراحل الطلبية</h2>
         <x-ui.help title="شريط المرحلة" body="يوضح موقع الطلبية في الدورة الأساسية. المرحلة الحالية مميزة، والمراحل السابقة مكتملة، أما الحالات التفصيلية مثل الإعادة للجرد أو التعديل فتظهر في شارة الحالة أعلى الصفحة." />
     </div>
-    <ol class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+    <ol class="ui-workflow-steps grid grid-cols-2 gap-2 sm:grid-cols-4" aria-label="تقدم الطلبية">
         @foreach($stageSteps as $stageIndex => $stage)
             <li>
-                <a href="#{{ $stage['anchor'] }}" class="ui-card-muted p-3 flex items-center gap-2">
+                <a href="#{{ $stage['anchor'] }}"
+                   class="ui-workflow-step {{ $stageIndex < $currentStageIndex ? 'ui-workflow-step-complete' : ($stageIndex === $currentStageIndex ? 'ui-workflow-step-current' : 'ui-workflow-step-upcoming') }}"
+                   @if($stageIndex === $currentStageIndex) aria-current="step" @endif>
                     <span class="ui-badge {{ $stageIndex < $currentStageIndex ? 'ui-badge-success' : ($stageIndex === $currentStageIndex ? 'ui-badge-info' : 'ui-badge-neutral') }}">{{ $stageIndex + 1 }}</span>
-                    <span class="{{ $stageIndex === $currentStageIndex ? 'ui-title font-black' : 'ui-text-soft' }}">{{ $stage['label'] }}</span>
+                    <span>
+                        <strong class="block {{ $stageIndex === $currentStageIndex ? 'ui-title' : 'ui-text-soft' }}">{{ $stage['label'] }}</strong>
+                        <small class="ui-text-muted">{{ $stageIndex < $currentStageIndex ? 'مكتملة' : ($stageIndex === $currentStageIndex ? 'المرحلة الحالية' : 'قادمة') }}</small>
+                    </span>
                 </a>
             </li>
         @endforeach
@@ -25,7 +30,10 @@
 
 <section class="ui-card p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between" aria-labelledby="purchaseOrderTaskTitle">
     <div>
-        <span class="ui-badge ui-badge-warning">مهمتك الآن</span>
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="ui-badge ui-badge-warning">مهمتك الآن</span>
+            <span class="ui-badge ui-badge-neutral">{{ $isAccountantContext ? 'مهام المحاسب' : 'مهام المالك' }}</span>
+        </div>
         <h2 id="purchaseOrderTaskTitle" class="ui-title text-lg font-black mt-2">{{ $taskTitle }}</h2>
         <p class="ui-text-soft mt-1">{{ $taskBody }}</p>
     </div>

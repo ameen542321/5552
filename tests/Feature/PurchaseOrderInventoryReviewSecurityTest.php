@@ -89,6 +89,8 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->assertOk()
             ->assertSee('مراحل الطلبية')
             ->assertSee('مهمتك الآن')
+            ->assertSee('مهام المالك')
+            ->assertSee('aria-current="step"', false)
             ->assertSee('الملخص المالي قبل الاعتماد')
             ->assertSee('24.00 ر.س')
             ->assertSee('4.00 ر.س');
@@ -417,6 +419,7 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->get(route('accountant.purchase-orders.show', $order))
             ->assertOk()
             ->assertSee('المرحلة الحالية:', false)
+            ->assertSee('مهام المحاسب', false)
             ->assertSee('الطقم الواحد يساوي 10 حبة.', false)
             ->assertSee('name="items['.$item->id.'][quantity_received]" value="2"', false)
             ->assertSee('name="items['.$item->id.'][cost_price_at_receipt]" value="200"', false)

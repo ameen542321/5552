@@ -54,7 +54,8 @@
 
         <div>
             <label for="purchase_order_search" class="block ui-text-caption ui-text-soft mb-1 font-bold cursor-pointer">بحث شامل</label>
-            <input type="search" id="purchase_order_search" name="search" value="{{ $search ?? '' }}" class="ui-input w-full" placeholder="رقم، مورد، أو اسم منتج">
+            <input type="search" id="purchase_order_search" name="search" value="{{ $search ?? '' }}" class="ui-input w-full" placeholder="مرجع PO، مورد، أو اسم منتج" aria-describedby="purchase_order_search_help">
+            <p id="purchase_order_search_help" class="ui-text-muted ui-text-caption mt-1">يمكن إدخال المرجع كاملًا مثل PO-3-2026-00015.</p>
         </div>
         <div>
             <label for="date_from" class="block ui-text-caption ui-text-soft mb-1 font-bold cursor-pointer">من تاريخ</label>

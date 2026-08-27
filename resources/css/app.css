@@ -290,6 +290,44 @@ html.ui-font-loading body > :not(.ui-page-loader) {
         border-radius: 1rem;
     }
 
+    /* شريط مراحل موحد: واضح بالحد والنص في الوضعين، ولا يعتمد على اللون وحده. */
+    .ui-workflow-step {
+        display: flex;
+        min-height: 4.5rem;
+        align-items: center;
+        gap: .75rem;
+        border: 1px solid var(--ui-border-soft);
+        border-radius: .75rem;
+        background: var(--ui-surface-muted);
+        padding: .75rem;
+        transition: border-color .2s ease, background-color .2s ease;
+    }
+
+    .ui-workflow-step:hover,
+    .ui-workflow-step:focus-visible {
+        border-color: var(--ui-brand);
+    }
+
+    .ui-workflow-step-current {
+        border-color: var(--ui-brand);
+        background: var(--ui-info-bg);
+    }
+
+    .ui-workflow-step-complete {
+        border-color: var(--ui-success-text);
+    }
+
+    .ui-workflow-step-upcoming {
+        opacity: .88;
+    }
+
+    @media (max-width: 639px) {
+        .ui-workflow-step {
+            min-height: 5rem;
+            align-items: flex-start;
+        }
+    }
+
     .ui-purchase-item-card {
         display: flex;
         flex-direction: column;
