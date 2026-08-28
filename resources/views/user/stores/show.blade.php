@@ -460,7 +460,10 @@
                     <p class="ui-status-success font-black text-2xl">{{ $inventoryAuditCounts['green'] ?? 0 }}</p>
                 </div>
             </div>
-            <a href="{{ route('user.stores.products.audit', ['store' => $store->id]) }}" class="ui-btn ui-btn-primary px-4 py-2 text-sm shrink-0"><i class="fa-solid fa-arrow-left"></i> فتح صفحة الجرد</a>
+            <div class="flex flex-col gap-2 shrink-0">
+                <a href="{{ route('user.stores.inventory-counts.index', ['store' => $store->id]) }}" class="ui-btn ui-btn-primary px-4 py-2 text-sm"><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> إدارة جلسات الجرد</a>
+                <a href="{{ route('user.stores.products.audit', ['store' => $store->id]) }}" class="ui-btn ui-btn-secondary px-4 py-2 text-sm"><i class="fa-solid fa-chart-simple" aria-hidden="true"></i> حالة جرد المنتجات</a>
+            </div>
         </div>
     </div>
 

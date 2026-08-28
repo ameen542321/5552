@@ -4,7 +4,7 @@
 <div class="max-w-6xl mx-auto space-y-5">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div class="flex items-center gap-2"><h1 class="ui-title text-2xl font-bold">جلسات جرد {{ $store->name }}</h1><x-ui.help title="جلسات الجرد" body="من هنا تنشئ جلسة الجرد، وتتابع ما أرسله المحاسب، ثم تعتمد النتائج أو تعيد المنتجات التي تحتاج إلى عد جديد." /></div>
-        <a class="ui-btn ui-btn-primary" href="{{ route('user.stores.inventory-counts.create', $store) }}">إنشاء جلسة جرد</a>
+        <div class="flex flex-wrap gap-2"><a class="ui-btn ui-btn-secondary" href="{{ route('user.stores.show', $store) }}"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> رجوع للمتجر</a><a class="ui-btn ui-btn-primary" href="{{ route('user.stores.inventory-counts.create', $store) }}">إنشاء جلسة جرد</a></div>
     </div>
     <x-ui.card>
         @forelse($sessions as $session)

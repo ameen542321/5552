@@ -2,6 +2,7 @@
 
 namespace Tests\Unit;
 
+use App\Models\InventoryCountSession;
 use PHPUnit\Framework\TestCase;
 
 class InventoryCountInterfaceContractTest extends TestCase
@@ -40,5 +41,37 @@ class InventoryCountInterfaceContractTest extends TestCase
             $contents = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/'.$view);
             $this->assertStringContainsString('<x-ui.help', $contents, $view);
         }
+    }
+
+    public function test_inventory_reference_contains_its_creation_date_and_sequence(): void
+    {
+        $session = new InventoryCountSession;
+        $session->id = 27;
+        $session->created_at = '2026-08-28 12:30:00';
+
+        $this->assertSame('INV-20260828-000027', $session->referenceCode());
+    }
+
+    public function test_description_is_used_for_search_but_not_rendered_in_inventory_pages_or_pdf(): void
+    {
+        $ownerController = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $views = implode("\n", array_map(
+            static fn (string $path): string => file_get_contents($path),
+            glob(__DIR__.'/../../resources/views/inventory-counts/**/*.blade.php') ?: []
+        ));
+        $pdf = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/pdf.blade.php');
+
+        $this->assertStringContainsString("orWhere('description', 'like'", $ownerController);
+        $this->assertStringNotContainsString('product_description_snapshot', $views);
+        $this->assertStringNotContainsString('<th>الوصف</th>', $pdf);
+    }
+
+    public function test_store_page_links_to_inventory_sessions_and_inventory_status(): void
+    {
+        $storePage = file_get_contents(__DIR__.'/../../resources/views/user/stores/show.blade.php');
+
+        $this->assertStringContainsString("route('user.stores.inventory-counts.index'", $storePage);
+        $this->assertStringContainsString('إدارة جلسات الجرد', $storePage);
+        $this->assertStringContainsString('حالة جرد المنتجات', $storePage);
     }
 }

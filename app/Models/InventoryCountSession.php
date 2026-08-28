@@ -19,7 +19,12 @@ class InventoryCountSession extends Model
     public function accountant() { return $this->belongsTo(Accountant::class); }
     public function items() { return $this->hasMany(InventoryCountSessionItem::class); }
 
-    public function referenceCode(): string { return 'INV-' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT); }
+    public function referenceCode(): string
+    {
+        $date = ($this->created_at ?? now())->format('Ymd');
+
+        return 'INV-' . $date . '-' . str_pad((string) $this->id, 6, '0', STR_PAD_LEFT);
+    }
 
     public function statusLabel(): string
     {

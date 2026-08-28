@@ -72,7 +72,7 @@
                 <span class="rounded-lg ui-status-warning-bg px-3 py-1.5 ui-status-warning"><b>أصفر: {{ $inventoryAuditCounts['yellow'] ?? 0 }}</b></span>
                 <span class="rounded-lg ui-status-success-bg px-3 py-1.5 ui-status-success"><b>أخضر: {{ $inventoryAuditCounts['green'] ?? 0 }}</b></span>
             </div>
-            <a href="{{ route('user.stores.products.audit', $store->id) }}" class="ui-btn ui-btn-primary mt-4"><i class="fa-solid fa-arrow-left"></i> فتح صفحة الجرد</a>
+            <a href="{{ route('user.stores.inventory-counts.index', $store->id) }}" class="ui-btn ui-btn-primary mt-4"><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> إدارة جلسات الجرد</a>
         </div>
     </details>
 

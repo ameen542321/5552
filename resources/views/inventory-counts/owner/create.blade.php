@@ -2,9 +2,12 @@
 @section('title', 'اختيار منتجات الجرد')
 @section('content')
 <div class="max-w-6xl mx-auto space-y-5">
-    <div class="flex items-center gap-2">
-        <h1 class="ui-title text-2xl font-bold">اختيار منتجات الجرد</h1>
-        <x-ui.help title="اختيار منتجات الجرد" body="تظهر المنتجات التي لم تُجرد أولًا. احفظ اختيار الصفحة قبل الانتقال إلى صفحة أخرى، واختر خمسة منتجات على الأقل لإنشاء الجلسة." />
+    <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+            <h1 class="ui-title text-2xl font-bold">اختيار منتجات الجرد</h1>
+            <x-ui.help title="اختيار منتجات الجرد" body="تظهر المنتجات التي لم تُجرد أولًا. احفظ اختيار الصفحة قبل الانتقال إلى صفحة أخرى، واختر خمسة منتجات على الأقل لإنشاء الجلسة." />
+        </div>
+        <a class="ui-btn ui-btn-secondary" href="{{ route('user.stores.inventory-counts.index', $store) }}"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> رجوع</a>
     </div>
     @if($errors->any())<div class="ui-alert ui-alert-danger">{{ $errors->first() }}</div>@endif
     <form method="GET" class="ui-card p-4 flex flex-col sm:flex-row gap-3">
@@ -40,7 +43,6 @@
                         </span>
                         <input type="checkbox" name="selected_ids[]" value="{{ $product->id }}" @checked(in_array($product->id, $selected)) aria-label="تحديد {{ $product->name }}">
                     </span>
-                    <span class="block ui-text-soft ui-text-caption mt-3">{{ $product->description ?: 'لا يوجد وصف' }}</span>
                     <span class="mt-3 grid grid-cols-3 gap-2 ui-text-caption">
                         <span class="ui-surface-muted-bg border ui-border rounded-lg p-2 ui-text-muted">الكمية: <b class="ui-title">{{ number_format((float) $product->quantity, 2) }}</b></span>
                         <span class="ui-surface-muted-bg border ui-border rounded-lg p-2 ui-text-muted">البيع: <b class="ui-status-info">{{ number_format((float) $product->price, 2) }}</b></span>
