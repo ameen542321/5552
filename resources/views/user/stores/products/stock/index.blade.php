@@ -17,32 +17,32 @@
         <div class="text-center flex-1">
             <div class="flex flex-wrap items-center justify-center gap-2">
                 <h1 class="text-xl md:text-2xl font-bold ui-title">إدارة مخزون المنتج</h1>
-                @if(($inventoryAuditStatus['color'] ?? null) === 'green' && ($inventoryAuditStatus['confirmed_at'] ?? null))
+                <?php if(($inventoryAuditStatus['color'] ?? null) === 'green' && ($inventoryAuditStatus['confirmed_at'] ?? null)): ?>
                     <x-ui.badge variant="success" title="تم تأكيد جرد المنتج في الدورة الحالية">
                         <span class="flex flex-col items-center leading-tight">
                             <span><i class="fa-solid fa-circle-check" aria-hidden="true"></i> تم الجرد</span>
                             <span class="text-[0.625rem] font-normal">{{ $inventoryAuditStatus['confirmed_at']->format('Y-m-d') }}</span>
                         </span>
                     </x-ui.badge>
-                @endif
+                <?php endif; ?>
             </div>
             <p class="ui-status-info ui-text-caption md:text-sm font-medium mt-1">
                 {{ $product->name }}
                 <span class="ui-text-muted mx-2">|</span>
-                @if($product->product_type === 'fractional')
+                <?php if($product->product_type === 'fractional'): ?>
                     <i class="fa-solid fa-scissors ui-text-caption ml-1"></i> منتج مجزأ (أمتار)
-                @elseif($product->is_splittable)
+                <?php elseif($product->is_splittable): ?>
                     <i class="fa-solid fa-boxes-stacked ui-text-caption ml-1"></i> نظام أطقم (قابل للتجزئة)
-                @else
+                <?php else: ?>
                     <i class="fa-solid fa-box ui-text-caption ml-1"></i> منتج عادي
-                @endif
+                <?php endif; ?>
             </p>
         </div>
 
         <div class="hidden md:block w-32"></div>
     </div>
 
-    @php
+    <?php
         $isFractional = ($product->product_type === 'fractional' && $product->roll_length > 0);
         $isSet = $product->is_splittable;
 
@@ -71,7 +71,7 @@
             ? round($rawStoredQuantity * (int) $product->items_per_unit)
             : $rawStoredQuantity;
         $currentQuantityLabel = \App\Support\ProductQuantityFormatter::storedNumber($currentQuantityValue);
-    @endphp
+    ?>
 
     {{-- بطاقات المعلومات السريعة --}}
     <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
@@ -80,17 +80,17 @@
             <div class="relative z-10 text-center">
                 <p class="ui-text-muted ui-text-caption uppercase font-bold tracking-widest mb-2">الكمية الحالية ({{ $currentQuantityUnitLabel }})</p>
                 <p class="text-4xl font-black ui-title">{{ $currentQuantityLabel }}</p>
-                @if($isSet)
+                <?php if($isSet): ?>
                     <div class="mt-3 flex flex-col items-center justify-center gap-2">
                         <span class="ui-text-caption ui-text-soft font-bold">
                             الطقم = {{ number_format($product->items_per_unit, 0) }} حبة
                         </span>
                     </div>
-                @elseif($isFractional)
+                <?php elseif($isFractional): ?>
                     <div class="mt-3 flex items-center justify-center">
                          <span class="ui-status-info font-bold">إجمالي الرصيد: {{ number_format($product->quantity, 2) }} متر</span>
                     </div>
-                @endif
+                <?php endif; ?>
             </div>
         </div>
 
@@ -104,31 +104,31 @@
         {{-- الحالة --}}
         <div class="ui-surface-muted-bg border ui-border p-6 rounded-2xl shadow-lg flex flex-col items-center justify-center">
             <p class="ui-text-muted ui-text-caption uppercase font-bold tracking-widest mb-3">حالة المستودع</p>
-            @if($isLowStock)
+            <?php if($isLowStock): ?>
                 <div class="ui-status-danger-bg border ui-border ui-status-danger px-4 py-2 rounded-full flex items-center gap-2 font-bold text-sm">
                     <span class="w-2 h-2 ui-status-danger-bg rounded-full animate-ping"></span>
                     مخزون منخفض
                 </div>
-            @else
+            <?php else: ?>
                 <div class="ui-status-success-bg border ui-border ui-status-success px-4 py-2 rounded-full flex items-center gap-2 font-bold text-sm">
                     <i class="fa-solid fa-check-circle"></i>
                     مستوى آمن
                 </div>
-            @endif
+            <?php endif; ?>
         </div>
 
         {{-- الجرد أصبح نظامًا مستقلاً؛ تعرض هذه البطاقة آخر نتيجة ورابط النظام فقط. --}}
         <div class="ui-surface-muted-bg border ui-border p-6 rounded-2xl shadow-lg flex flex-col justify-between gap-4">
             <div class="text-center">
-                @if($inventoryAuditStatus['confirmed_at'] ?? null)
+                <?php if($inventoryAuditStatus['confirmed_at'] ?? null): ?>
                     <p class="ui-text-caption ui-status-success mt-2">
                         آخر تأكيد في هذه الدورة: {{ $inventoryAuditStatus['confirmed_at']->format('Y-m-d') }}
                     </p>
-                @elseif($latestInventoryAudit)
+                <?php elseif($latestInventoryAudit): ?>
                     <p class="ui-text-caption ui-text-muted mt-2">
                         آخر جرد سابق: {{ optional($latestInventoryAudit->business_date)->format('Y-m-d') ?: $latestInventoryAudit->created_at->format('Y-m-d') }}
                     </p>
-                @endif
+                <?php endif; ?>
             </div>
 
             <a href="{{ route('user.stores.inventory-counts.index', $store) }}" class="ui-btn ui-btn-primary w-full">فتح نظام الجرد</a>
@@ -137,22 +137,22 @@
 
     <x-ui.card class="mb-8">
         <h2 class="ui-title text-xl font-bold mb-4">سجل جرد المنتج</h2>
-        @if($inventoryCountHistory->isEmpty())
+        <?php if($inventoryCountHistory->isEmpty()): ?>
             <div class="ui-empty-state">لم يسجل جرد لهذا المنتج بعد.</div>
-        @else
-            @foreach($inventoryCountHistory as $audit)
-                @php($countItem = $audit->inventoryCountSessionItem)
+        <?php else: ?>
+            <?php foreach($inventoryCountHistory as $audit): ?>
+                <?php $countItem = $audit->inventoryCountSessionItem; ?>
                 <div class="ui-frame-row">
                     <strong class="ui-title">جرد يوم {{ optional($audit->business_date)->format('Y-m-d') ?: $audit->created_at->format('Y-m-d') }}</strong>
-                    @if($countItem)
+                    <?php if($countItem): ?>
                         <span class="block ui-text-soft">كمية المحاسب: {{ $countItem->accountant_quantity }} — الكمية النهائية: {{ $countItem->finalQuantity() }} {{ ['piece'=>'حبة','kit'=>'طقم','meter'=>'متر','roll'=>'رول','unit'=>'وحدة'][$countItem->unit_type] ?? $countItem->unit_type }}</span>
                         <span class="block ui-text-caption">اعتمد فعليًا: {{ $countItem->approved_at?->format('Y-m-d H:i') }} — {{ $countItem->decision === 'adjusted_approved' ? 'عدّل المالك النتيجة' : 'اعتمد المالك نتيجة المحاسب' }}</span>
-                    @else
+                    <?php else: ?>
                         <span class="block ui-text-soft">سجل جرد سابق قبل تشغيل نظام الجلسات المستقل.</span>
-                    @endif
+                    <?php endif; ?>
                 </div>
-            @endforeach
-        @endif
+            <?php endforeach; ?>
+        <?php endif; ?>
     </x-ui.card>
 
     {{-- نماذج العمليات (توريد / سحب) --}}
@@ -176,24 +176,24 @@
                             <input type="number" name="quantity" step="0.01" min="0.01" required
                                    class="w-full ui-surface-muted-bg border ui-border ui-title rounded-xl px-4 py-3   outline-none transition"
                                    placeholder="0.00">
-                            @if($isFractional)
+                            <?php if($isFractional): ?>
                                 <p class="ui-text-caption ui-status-info mt-1">اختر هل الكمية المدخلة بالرول أو بالمتر.</p>
-                            @endif
+                            <?php endif; ?>
                         </div>
-                        @if($isSet || $isFractional)
+                        <?php if($isSet || $isFractional): ?>
                         <div class="flex-1">
                             <label class="block ui-text-muted ui-text-caption uppercase font-bold mb-1 ml-1">الوحدة</label>
                             <select name="unit_type" class="w-full ui-surface-muted-bg border ui-border ui-title rounded-xl px-2 py-3   outline-none cursor-pointer">
-                                @if($isFractional)
+                                <?php if($isFractional): ?>
                                     <option value="roll">رول</option>
                                     <option value="meter">متر</option>
-                                @else
+                                <?php else: ?>
                                     <option value="unit">طقم</option>
                                     <option value="piece">حبة مفردة</option>
-                                @endif
+                                <?php endif; ?>
                             </select>
                         </div>
-                        @endif
+                        <?php endif; ?>
                     </div>
 
                     <div>
@@ -216,9 +216,9 @@
             </h3>
             <form action="{{ route('user.stores.products.stock.decrease', [$store->id, $product->id]) }}" method="POST" data-confirm-submit data-validate-available-stock data-current-stock="{{ $rawStoredQuantity }}" data-product-type="{{ $product->product_type }}" data-is-splittable="{{ $isSet ? '1' : '0' }}" data-items-per-unit="{{ (int) ($product->items_per_unit ?: 1) }}" data-roll-length="{{ (float) ($product->roll_length ?: 0) }}" data-empty-title="لا يمكن سحب المخزون" data-empty-text="رصيد المنتج الحالي صفر، ولا توجد كمية متاحة للسحب." data-insufficient-title="الكمية غير متوفرة" data-insufficient-text="الكمية المطلوب سحبها أكبر من الكمية الموجودة في المخزون." data-confirm-title="تأكيد سحب المخزون" data-confirm-text="سيتم خصم الكمية المدخلة من مخزون المنتج. تأكد من الكمية والوحدة قبل المتابعة." data-confirm-icon="warning">
                 @csrf
-                @error('quantity')
-                    <div class="ui-status-danger-bg ui-status-danger rounded-xl border ui-border p-3 text-sm font-bold">{{ $message }}</div>
-                @enderror
+                <?php if ($errors->has('quantity')): ?>
+                    <div class="ui-status-danger-bg ui-status-danger rounded-xl border ui-border p-3 text-sm font-bold">{{ $errors->first('quantity') }}</div>
+                <?php endif; ?>
                 <div class="space-y-4">
                     <label class="block">
                         <span class="mb-1 block ui-text-caption font-bold ui-title">تاريخ السحب</span>
@@ -230,24 +230,24 @@
                             <input type="number" name="quantity" step="0.01" min="0.01" required
                                    class="w-full ui-surface-muted-bg border ui-border ui-title rounded-xl px-4 py-3   outline-none transition"
                                    placeholder="0.00">
-                            @if($isFractional)
+                            <?php if($isFractional): ?>
                                 <p class="ui-text-caption ui-status-info mt-1">اختر هل الكمية المدخلة بالرول أو بالمتر.</p>
-                            @endif
+                            <?php endif; ?>
                         </div>
-                        @if($isSet || $isFractional)
+                        <?php if($isSet || $isFractional): ?>
                         <div class="flex-1">
                             <label class="block ui-text-muted ui-text-caption uppercase font-bold mb-1 ml-1">الوحدة</label>
                             <select name="unit_type" class="w-full ui-surface-muted-bg border ui-border ui-title rounded-xl px-2 py-3   outline-none cursor-pointer">
-                                @if($isFractional)
+                                <?php if($isFractional): ?>
                                     <option value="roll">رول</option>
                                     <option value="meter">متر</option>
-                                @else
+                                <?php else: ?>
                                     <option value="unit">طقم</option>
                                     <option value="piece">حبة مفردة</option>
-                                @endif
+                                <?php endif; ?>
                             </select>
                         </div>
-                        @endif
+                        <?php endif; ?>
                     </div>
 
                     <div>
@@ -292,16 +292,16 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-ui-border">
-                    @if($movements->isEmpty())
+                    <?php if($movements->isEmpty()): ?>
                         <tr>
                             <td colspan="5" class="py-16 text-center">
                                 <i class="fa-solid fa-inbox ui-text-muted text-5xl mb-4 block"></i>
                                 <p class="ui-text-muted italic">لا توجد حركات مخزنية مسجلة حتى الآن</p>
                             </td>
                         </tr>
-                    @else
-                    @foreach($movements as $move)
-                        @php
+                    <?php else: ?>
+                    <?php foreach($movements as $move): ?>
+                        <?php
                             $movementUnitLabel = $move->snapshotUnitLabel($product);
                             $hasPosReference = preg_match('/POS\s*#(\d+)/u', (string) $move->note, $posMatch);
                             $moveQty = $move->quantityInSnapshotUnit((float) $move->quantity, $product);
@@ -314,16 +314,16 @@
                             $movementOperationLabel = $isPosSale
                                 ? 'بيع (' . \App\Support\ProductQuantityFormatter::number($moveQty) . ' ' . $movementUnitLabel . ') (POS #' . $posMatch[1] . ')'
                                 : $move->operation_label;
-                        @endphp
+                        ?>
                         <tr class="ui-surface-muted-bg transition-colors">
                             <td class="py-4 px-6">
                                 <div class="flex flex-col">
                                     <span class="font-bold {{ $isAuditConfirmation ? 'ui-status-info' : ($move->type === 'increase' ? 'ui-status-success' : 'ui-status-danger') }}">
                                         {{ $movementOperationLabel }}
                                     </span>
-                                    @if($move->note && ! $isPosSale)
+                                    <?php if($move->note && ! $isPosSale): ?>
                                         <span class="ui-text-caption ui-text-muted italic mt-1">{{ $move->note }}</span>
-                                    @endif
+                                    <?php endif; ?>
                                 </div>
                             </td>
                             <td class="py-4 px-6">
@@ -333,40 +333,40 @@
                                 <span class="ui-text-caption ui-text-muted mr-1">{{ $movementUnitLabel }}</span>
                             </td>
                             <td class="py-4 px-6">
-                                @if($hasBalanceSnapshot)
+                                <?php if($hasBalanceSnapshot): ?>
                                     <span class="font-mono ui-text-muted">
                                         {{ \App\Support\ProductQuantityFormatter::number($beforeQty) }}
                                     </span>
                                     <span class="ui-text-caption ui-text-muted mr-1">{{ $movementUnitLabel }}</span>
-                                @else
+                                <?php else: ?>
                                     <span class="ui-text-muted ui-text-caption">غير متوفر</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
                             <td class="py-4 px-6">
-                                @if($hasBalanceSnapshot)
+                                <?php if($hasBalanceSnapshot): ?>
                                     <span class="font-mono ui-status-info font-bold">
                                         {{ \App\Support\ProductQuantityFormatter::number($afterQty) }}
                                     </span>
                                     <span class="ui-text-caption ui-text-muted mr-1">{{ $movementUnitLabel }}</span>
-                                @else
+                                <?php else: ?>
                                     <span class="ui-text-muted ui-text-caption">غير متوفر</span>
-                                @endif
+                                <?php endif; ?>
                             </td>
                             <td class="py-4 px-6 ui-text-caption ui-text-muted font-mono">
                                 {{ optional($move->business_date)->format('Y-m-d') ?: $move->created_at->format('Y-m-d') }}<br>
                                 {{ $move->created_at->format('H:i A') }}
                             </td>
                         </tr>
-                    @endforeach
-                    @endif
+                    <?php endforeach; ?>
+                    <?php endif; ?>
                 </tbody>
             </table>
         </div>
-        @if($movements->hasPages())
+        <?php if($movements->hasPages()): ?>
             <div class="p-4 border-t ui-border">
                 {{ $movements->links() }}
             </div>
-        @endif
+        <?php endif; ?>
     </div>
 </div>
 

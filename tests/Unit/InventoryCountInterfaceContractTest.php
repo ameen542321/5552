@@ -175,6 +175,8 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('href="{{ $stockReturnUrl }}"', $stockView);
         $this->assertStringNotContainsString('@forelse', $stockView);
         $this->assertStringNotContainsString('@empty', $stockView);
+        $this->assertStringNotContainsString('@if', $stockView);
+        $this->assertStringNotContainsString('@error', $stockView);
         $stockController = file_get_contents(__DIR__.'/../../app/Http/Controllers/ProductStockController.php');
         $this->assertStringContainsString("request('return_to') === 'inventory-count'", $stockController);
         $this->assertStringContainsString("'stockReturnUrl'", $stockController);
