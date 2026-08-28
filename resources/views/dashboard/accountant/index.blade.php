@@ -33,6 +33,13 @@
         </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
+        @if(($pendingInventoryCountSessions ?? collect())->isNotEmpty())
+            <a href="{{ route('accountant.inventory-counts.index') }}" class="ui-btn ui-btn-warning" aria-label="فتح طلبات الجرد">
+                <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
+                طلبات الجرد
+                <x-ui.badge variant="warning">{{ $pendingInventoryCountSessions->count() }}</x-ui.badge>
+            </a>
+        @endif
         <x-purchase-order-alerts-button :alerts="$pendingPurchaseOrderAlerts ?? collect()" context="accountant" />
         <x-accountant-dashboard-alerts
             :incoming-transfers="$pendingIncomingTransfersCount ?? 0"

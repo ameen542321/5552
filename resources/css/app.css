@@ -1439,6 +1439,12 @@ html.ui-font-loading body > :not(.ui-page-loader) {
         color: var(--ui-text);
     }
 
+    .ui-alert-success {
+        border-color: color-mix(in srgb, var(--ui-success-text) 35%, var(--ui-border));
+        background: var(--ui-success-bg);
+        color: var(--ui-success-text);
+    }
+
     .ui-alert-danger {
         border-color: color-mix(in srgb, var(--ui-danger-text) 35%, var(--ui-border));
         background: var(--ui-danger-bg);

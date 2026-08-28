@@ -25,6 +25,7 @@ use App\Services\Accounting\AccountingOperationFeedService;
 use App\Services\Shifts\ShiftGapInfoService;
 use App\Services\Shifts\ShiftOperationBinderService;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrder;
+use App\Models\InventoryCountSession;
 
 class DashboardController extends Controller
 {
@@ -41,6 +42,10 @@ class DashboardController extends Controller
             ->whereIn('workflow_status', ['returned_for_edit', 'returned_for_count', 'pending_receipt_confirmation'])
             ->latest('updated_at')
             ->limit(5)
+            ->get();
+        $pendingInventoryCountSessions = InventoryCountSession::where('accountant_id', $accountant->id)
+            ->whereIn('status', ['sent_to_accountant', 'counting', 'returned_to_accountant'])
+            ->latest('updated_at')
             ->get();
         $lastBalance = null;
 
@@ -217,7 +222,7 @@ class DashboardController extends Controller
                 'requiresSecondShiftConfirmation', 'canChooseNextShiftBusinessDate',
                 'nextBusinessDateAfterCurrent', 'missingBusinessDates',
                 'pendingShiftGapRequests', 'activeShiftGapBusinessDate', 'isShiftGapProcessing',
-                'accountantFinanceMovements', 'pendingPurchaseOrderAlerts'
+                'accountantFinanceMovements', 'pendingPurchaseOrderAlerts', 'pendingInventoryCountSessions'
             ));
 
         } catch (\Exception $e) {

@@ -4,11 +4,20 @@
 <div class="max-w-6xl mx-auto space-y-5">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div><h1 class="ui-title text-2xl font-bold">{{ $session->referenceCode() }}</h1><p class="ui-text-soft">الحالة: {{ $session->statusLabel() }} — المحاسب: {{ $session->accountant?->name }}</p></div><div class="flex flex-wrap gap-2"><a class="ui-btn ui-btn-secondary" href="{{ route('user.stores.inventory-counts.index', $store) }}"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> رجوع</a><a class="ui-btn ui-btn-secondary" href="{{ route('user.stores.inventory-counts.pdf', [$store, $session]) }}" target="_blank">تصدير PDF</a></div></div>
     @if($session->status === 'draft')
-        <div class="ui-card p-4 flex flex-col gap-3 sm:flex-row">
-            <a class="ui-btn ui-btn-secondary" href="{{ route('user.stores.inventory-counts.create', ['store' => $store, 'inventory_session' => $session->id]) }}">إضافة أو حذف منتجات</a>
-            <form method="POST" action="{{ route('user.stores.inventory-counts.send', [$store, $session]) }}">@csrf<button class="ui-btn ui-btn-primary">إرسال للمحاسب</button></form>
-            <form method="POST" action="{{ route('user.stores.inventory-counts.destroy', [$store, $session]) }}" data-ui-confirm="سيتم حذف مسودة الجرد.">@csrf @method('DELETE')<button class="ui-btn ui-btn-danger">حذف المسودة</button></form>
-        </div>
+        <x-ui.card>
+            <div class="flex items-center gap-2"><h2 class="ui-title text-xl font-bold">مراجعة المسودة قبل الإرسال</h2><x-ui.help title="مراجعة المسودة" body="تأكد من المحاسب والمنتجات والملاحظة. بعد الإرسال تنتقل الجلسة إلى المحاسب ولا يعود تعديل منتجات المسودة متاحًا." /></div>
+            <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+                <div class="ui-frame-row"><span class="ui-text-soft">المنتجات</span><strong class="ui-title">{{ $session->items->count() }}</strong></div>
+                <div class="ui-frame-row"><span class="ui-text-soft">المحاسب</span><strong class="ui-title">{{ $session->accountant?->name ?: 'غير محدد' }}</strong></div>
+                <div class="ui-frame-row"><span class="ui-text-soft">حالة المسودة</span><strong class="ui-status-success">جاهزة للمراجعة</strong></div>
+            </div>
+            @if($session->note)<div class="ui-alert ui-alert-info mt-4"><strong>ملاحظة الجلسة:</strong> {{ $session->note }}</div>@endif
+            <div class="mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <form method="POST" action="{{ route('user.stores.inventory-counts.send', [$store, $session]) }}" data-ui-confirm="سيتم تثبيت منتجات المسودة وإرسالها إلى المحاسب لبدء إدخال كميات الجرد. هل تريد المتابعة؟" data-ui-confirm-title="إرسال جلسة الجرد للمحاسب" data-ui-confirm-busy="جارٍ إرسال الجلسة...">@csrf<button class="ui-btn ui-btn-primary w-full sm:w-auto">إرسال للمحاسب</button></form>
+                <a class="ui-btn ui-btn-secondary" href="{{ route('user.stores.inventory-counts.create', ['store' => $store, 'inventory_session' => $session->id]) }}">تعديل المنتجات أو المحاسب</a>
+                <form method="POST" action="{{ route('user.stores.inventory-counts.destroy', [$store, $session]) }}" data-ui-confirm="سيتم حذف مسودة الجرد." data-ui-confirm-title="حذف المسودة">@csrf @method('DELETE')<button class="ui-btn ui-btn-danger w-full sm:w-auto">حذف المسودة</button></form>
+            </div>
+        </x-ui.card>
     @endif
     @if($session->items->contains(fn ($item) => in_array($item->decision, ['approved', 'adjusted_approved'], true)))
         <div class="ui-alert ui-alert-info">
@@ -23,7 +32,7 @@
             <button class="ui-btn ui-btn-success">اعتماد المنتجات المحددة</button>
         </form>
     @endif
-    <div class="space-y-4">
+    <div class="{{ $session->status === 'draft' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3' : 'space-y-4' }}">
         @foreach($session->items as $item)
             @php($legacyAudit = $legacyAudits->get($item->product_id))
             <x-ui.card>
@@ -36,7 +45,7 @@
                     </div>
                     @if($item->accountant_quantity === null)
                         <div class="flex flex-col items-end gap-2">
-                            <x-ui.badge variant="info">بانتظار المحاسب</x-ui.badge>
+                            <x-ui.badge :variant="$session->status === 'draft' ? 'success' : 'info'">{{ $session->status === 'draft' ? 'ضمن المسودة' : 'بانتظار المحاسب' }}</x-ui.badge>
                             @if($legacyAudit)
                                 <span class="ui-text-caption">آخر جرد سابق: {{ optional($legacyAudit->business_date)->format('Y-m-d') ?: $legacyAudit->created_at?->format('Y-m-d') }} @if($legacyAudit->user)— بواسطة {{ $legacyAudit->user->name }}@endif</span>
                             @endif

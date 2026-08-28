@@ -125,5 +125,24 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('data-ui-confirm=', $view);
         $this->assertStringContainsString('إرسال نتائج الجرد للمالك', $view);
         $this->assertStringContainsString('جارٍ إرسال النتائج...', $view);
+        $this->assertStringContainsString('خطوة إلزامية:', $view);
+        $this->assertStringContainsString('احفظ كميات المنتجات أولًا', $view);
+        $this->assertStringContainsString('لم يتم إرسال النتائج:', $view);
+    }
+
+    public function test_draft_review_pdf_fonts_and_dashboard_inventory_alert_follow_shared_interfaces(): void
+    {
+        $draft = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $dashboardController = file_get_contents(__DIR__.'/../../app/Http/Controllers/Accountant/DashboardController.php');
+        $dashboard = file_get_contents(__DIR__.'/../../resources/views/dashboard/accountant/index.blade.php');
+
+        $this->assertStringContainsString('مراجعة المسودة قبل الإرسال', $draft);
+        $this->assertStringContainsString('تعديل المنتجات أو المحاسب', $draft);
+        $this->assertStringContainsString('إرسال جلسة الجرد للمحاسب', $draft);
+        $this->assertStringContainsString('ArabicPdf as PDF', $controller);
+        $this->assertStringContainsString("PDF::loadView('inventory-counts.pdf'", $controller);
+        $this->assertStringContainsString('pendingInventoryCountSessions', $dashboardController);
+        $this->assertStringContainsString('طلبات الجرد', $dashboard);
     }
 }

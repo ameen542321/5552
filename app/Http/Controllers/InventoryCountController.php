@@ -9,11 +9,11 @@ use App\Models\Product;
 use App\Models\Store;
 use App\Services\InventoryCountService;
 use App\Services\NotificationService;
+use App\Support\ArabicPdf as PDF;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
-use Mpdf\Mpdf;
 
 class InventoryCountController extends Controller
 {
@@ -140,9 +140,12 @@ class InventoryCountController extends Controller
     public function pdf(Store $store, InventoryCountSession $inventoryCount)
     {
         $this->ownerStore($store); $this->ensureSessionStore($inventoryCount, $store); $inventoryCount->load(['items', 'accountant']);
-        $html = view('inventory-counts.pdf', ['session' => $inventoryCount, 'store' => $store, 'issuedAt' => now()])->render();
-        $pdf = new Mpdf(['mode' => 'utf-8', 'format' => 'A4']); $pdf->WriteHTML($html);
-        return response($pdf->Output('', 'S'), 200, ['Content-Type' => 'application/pdf', 'Content-Disposition' => 'inline; filename="'.$inventoryCount->referenceCode().'.pdf"']);
+        $pdf = PDF::loadView('inventory-counts.pdf', ['session' => $inventoryCount, 'store' => $store, 'issuedAt' => now()]);
+
+        return response($pdf->output(), 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'inline; filename="'.$inventoryCount->referenceCode().'.pdf"',
+        ]);
     }
 
     private function selectionKey(Store $store): string { return 'inventory_count_selection_'.$store->id; }

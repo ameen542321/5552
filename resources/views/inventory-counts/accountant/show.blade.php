@@ -9,6 +9,11 @@
         </div>
         <a class="ui-btn ui-btn-secondary" href="{{ route('accountant.inventory-counts.index') }}"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> رجوع</a>
     </div>
+    @if(session('success'))<div class="ui-alert ui-alert-success" role="status">{{ session('success') }}</div>@endif
+    @if($errors->any())<div class="ui-alert ui-alert-danger" role="alert"><strong>لم يتم إرسال النتائج:</strong> {{ $errors->first() }}</div>@endif
+    <div class="ui-alert ui-alert-info">
+        <strong>خطوة إلزامية:</strong> بعد إدخال كمية أي منتج اضغط «حفظ كمية المنتج». الكتابة داخل الحقل وحدها لا تثبت الكمية ولا تدخلها ضمن الإرسال للمالك.
+    </div>
 
     @foreach($session->items as $item)
         @php
@@ -51,7 +56,9 @@
         </form>
     @endforeach
 
-    <div class="ui-alert ui-alert-warning">
+    @php($allItemsSaved = $session->items->isNotEmpty() && $session->items->every(fn ($item) => $item->accountant_quantity !== null && $item->decision !== 'returned'))
+    <div class="ui-alert {{ $allItemsSaved ? 'ui-alert-warning' : 'ui-alert-danger' }}">
+        @unless($allItemsSaved)<strong>الإرسال غير جاهز:</strong> احفظ كمية كل منتج أولًا بواسطة زر «حفظ كمية المنتج».<br>@endunless
         عند الإرسال ستنتقل الكميات المحفوظة ولقطات المقارنة إلى صاحب المتجر، ولن تتمكن من تعديلها إلا إذا أعاد لك صاحب المتجر منتجًا لإعادة الجرد.
     </div>
     <form method="POST" action="{{ route('accountant.inventory-counts.submit', $session) }}"
@@ -59,7 +66,7 @@
           data-ui-confirm-title="إرسال نتائج الجرد للمالك"
           data-ui-confirm-busy="جارٍ إرسال النتائج...">
         @csrf
-        <button class="ui-btn ui-btn-primary w-full">إرسال النتائج للمالك</button>
+        <button class="ui-btn ui-btn-primary w-full" @disabled(! $allItemsSaved)>{{ $allItemsSaved ? 'إرسال النتائج للمالك' : 'احفظ كميات المنتجات أولًا' }}</button>
     </form>
 </div>
 @endsection
