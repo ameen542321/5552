@@ -172,8 +172,10 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString("name('cancel')", $routes);
         $this->assertStringContainsString('إلغاء الجلسة', $ownerView);
         $this->assertStringContainsString("'return_to' => 'inventory-count'", $ownerView);
-        $this->assertStringContainsString("request('return_to') === 'inventory-count'", $stockView);
         $this->assertStringContainsString('href="{{ $stockReturnUrl }}"', $stockView);
+        $stockController = file_get_contents(__DIR__.'/../../app/Http/Controllers/ProductStockController.php');
+        $this->assertStringContainsString("request('return_to') === 'inventory-count'", $stockController);
+        $this->assertStringContainsString("'stockReturnUrl'", $stockController);
     }
 
     public function test_inventory_approval_reconciles_stock_with_the_selected_business_date(): void

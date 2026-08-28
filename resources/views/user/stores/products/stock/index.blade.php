@@ -4,15 +4,6 @@
 
 @section('content')
 
-@php
-    $stockReturnUrl = route('user.stores.products.index', $store->id);
-    if (request('return_to') === 'audit') {
-        $stockReturnUrl = route('user.stores.products.audit', $store->id);
-    } elseif (request('return_to') === 'inventory-count' && request()->filled('inventory_count')) {
-        $stockReturnUrl = route('user.stores.inventory-counts.show', [$store->id, request('inventory_count')]);
-    }
-@endphp
-
 <div class="max-w-5xl mx-auto py-10 px-4 sm:px-6" data-inventory-system>
 
     {{-- الهيدر --}}
