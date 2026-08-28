@@ -1433,6 +1433,34 @@ html.ui-font-loading body > :not(.ui-page-loader) {
         color: var(--ui-warning-text);
     }
 
+    .ui-alert-info {
+        border-color: color-mix(in srgb, var(--ui-info-text) 35%, var(--ui-border));
+        background: var(--ui-info-bg);
+        color: var(--ui-text);
+    }
+
+    .ui-alert-danger {
+        border-color: color-mix(in srgb, var(--ui-danger-text) 35%, var(--ui-border));
+        background: var(--ui-danger-bg);
+        color: var(--ui-danger-text);
+    }
+
+    .ui-label {
+        display: block;
+        margin-bottom: .375rem;
+        color: var(--ui-text);
+        font-weight: 800;
+    }
+
+    .ui-empty-state {
+        border: 1px dashed var(--ui-border);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        text-align: center;
+        color: var(--ui-text-soft);
+        background: var(--ui-surface-muted);
+    }
+
     .ui-alert-warning strong,
     .ui-alert-warning .ui-alert-title {
         color: var(--ui-warning-text);

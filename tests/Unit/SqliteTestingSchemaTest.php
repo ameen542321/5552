@@ -25,6 +25,8 @@ class SqliteTestingSchemaTest extends TestCase
         $this->assertContains('security_events', $tables);
         $this->assertContains('security_event_activities', $tables);
         $this->assertContains('purchase_order_limit_settings', $tables);
+        $this->assertContains('inventory_count_sessions', $tables);
+        $this->assertContains('inventory_count_session_items', $tables);
         $this->assertNotContains('migrations', $tables);
 
         $userColumns = $database->query('PRAGMA table_info("users")')->fetchAll(PDO::FETCH_ASSOC);

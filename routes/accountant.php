@@ -14,6 +14,7 @@ use App\Http\Controllers\Store\EmployeeFinanceController;
 use App\Http\Controllers\Accountant\ProductSearchController;
 use App\Http\Controllers\Accountant\StoreTransferController as AccountantStoreTransferController;
 use App\Modules\PurchaseOrders\Controllers\AccountantPurchaseOrderController;
+use App\Http\Controllers\Accountant\InventoryCountController;
 
 /*
 |--------------------------------------------------------------------------
@@ -70,6 +71,12 @@ Route::middleware(['accountant.unified'])->group(function () {
 
         // --- مسارات لوحة التحكم والديون العامة ---
         Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
+        Route::prefix('inventory-counts')->name('inventory-counts.')->group(function () {
+            Route::get('/', [InventoryCountController::class, 'index'])->name('index');
+            Route::get('/{inventoryCount}', [InventoryCountController::class, 'show'])->name('show');
+            Route::put('/{inventoryCount}/items/{item}', [InventoryCountController::class, 'update'])->name('items.update');
+            Route::post('/{inventoryCount}/submit', [InventoryCountController::class, 'submit'])->name('submit');
+        });
         Route::post('/shift-gaps/{log}/activate', [DashboardController::class, 'activateShiftGap'])->name('shift-gaps.activate');
         Route::delete('/shift-gaps/active', [DashboardController::class, 'clearShiftGap'])->name('shift-gaps.clear');
         Route::post('/balance/store', [DashboardController::class, 'storeBalance'])->name('balance.store');

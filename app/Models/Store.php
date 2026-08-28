@@ -78,6 +78,7 @@ class Store extends Model
     public function sales() { return $this->hasMany(Sale::class); }
     public function expenses() { return $this->hasMany(Expense::class); }
     public function stockMovements() { return $this->hasMany(StockMovement::class); }
+    public function inventoryCountSessions() { return $this->hasMany(InventoryCountSession::class); }
     public function withdrawals() { return $this->hasMany(Withdrawal::class); }
     public function employees() { return $this->hasMany(Employee::class); }
     public function archivedItem() { return $this->morphOne(ArchivedItem::class, 'archivable'); }

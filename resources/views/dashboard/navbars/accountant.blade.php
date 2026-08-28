@@ -152,6 +152,13 @@
    {{-- بطاقتان في كل سطر كما كان ترتيب قائمة المحاسب المعتمد. --}}
    <div class="grid grid-cols-2 gap-2">
 
+    <a href="{{ route('accountant.inventory-counts.index') }}"
+       class="ui-mobile-action-card group relative">
+        <i class="fa-solid fa-clipboard-check ui-mobile-action-icon"></i>
+        <span class="ui-text-caption font-bold uppercase">مهام الجرد</span>
+        <span class="ui-tooltip-popover ui-tooltip-popover-top">إدخال الكميات الفعلية المرسلة من المالك</span>
+    </a>
+
     {{-- ⭐ البيع السريع --}}
     <a href="{{ route('accountant.quick-sale.index') }}"
        class="ui-mobile-action-card group relative">

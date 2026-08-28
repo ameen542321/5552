@@ -3,6 +3,10 @@
 @section('title', 'جرد المنتجات – ' . $store->name)
 
 @section('content')
+<div class="max-w-6xl mx-auto mb-4 ui-alert ui-alert-info flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+    <span>أصبح إنشاء الجرد وإرساله ومراجعته داخل نظام الجرد المستقل.</span>
+    <a class="ui-btn ui-btn-primary" href="{{ route('user.stores.inventory-counts.index', $store) }}">فتح نظام الجرد</a>
+</div>
 <div class="max-w-7xl mx-auto px-4 py-6 text-right" dir="rtl" data-inventory-audit>
     <div class="mb-6 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
         <div class="flex items-center gap-2">

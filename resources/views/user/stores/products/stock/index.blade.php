@@ -117,14 +117,7 @@
             @endif
         </div>
 
-        {{-- أزرار الجرد وملاحظته دون تكرار نص الحالة الموجود في صفحة الجرد. --}}
-        @php
-            $auditButtonClass = match ($inventoryAuditStatus['color']) {
-                'yellow' => 'ui-status-warning-bg ui-title',
-                'green' => 'ui-btn ui-btn-success',
-                default => 'ui-surface-muted-bg ui-text-muted cursor-not-allowed',
-            };
-        @endphp
+        {{-- الجرد أصبح نظامًا مستقلاً؛ تعرض هذه البطاقة آخر نتيجة ورابط النظام فقط. --}}
         <div class="ui-surface-muted-bg border ui-border p-6 rounded-2xl shadow-lg flex flex-col justify-between gap-4">
             <div class="text-center">
                 @if($inventoryAuditStatus['confirmed_at'] ?? null)
@@ -138,31 +131,25 @@
                 @endif
             </div>
 
-            @if($canConfirmAudit)
-                <form action="{{ route('user.stores.products.stock.audit-confirm', [$store->id, $product->id]) }}" method="POST" data-confirm-submit data-confirm-title="تأكيد جرد المنتج" data-confirm-text="سيتم تسجيل تأكيد جرد لهذا المنتج في الدورة الحالية. هل تريد المتابعة؟" data-confirm-icon="warning">
-                    @csrf
-                    <label class="mb-3 block">
-                        <span class="mb-1 block ui-text-caption font-bold ui-title">تاريخ الجرد</span>
-                        <input type="date" name="business_date" value="{{ old('business_date', $currentBusinessDate) }}" required class="ui-input">
-                    </label>
-                    <textarea name="audit_note" rows="2" maxlength="255" class="ui-input mb-3" placeholder="ملاحظات تأكيد الجرد (اختياري)"></textarea>
-                    <button type="submit" class="w-full {{ $auditButtonClass }} font-black py-3 rounded-xl transition-all active:scale-[0.98]">
-                        تأكيد جرد المنتج
-                    </button>
-                </form>
-            @else
-                <button type="button" disabled class="w-full {{ $auditButtonClass }} font-black py-3 rounded-xl">
-                    {{ $inventoryAuditStatus['can_confirm'] ? 'تم تأكيد الجرد هذا الشهر' : 'أكمل البيانات أولاً' }}
-                </button>
-            @endif
-            @if($canCancelAudit)
-                <form action="{{ route('user.stores.products.stock.audit-confirm.cancel', [$store->id, $product->id]) }}" method="POST" data-ui-confirm="سيتم إلغاء آخر تأكيد جرد مسموح في الفترة الحالية." data-ui-confirm-title="إلغاء تأكيد الجرد">
-                    @csrf @method('DELETE')
-                    <button class="ui-btn ui-btn-danger w-full">إلغاء تأكيد الجرد</button>
-                </form>
-            @endif
+            <a href="{{ route('user.stores.inventory-counts.index', $store) }}" class="ui-btn ui-btn-primary w-full">فتح نظام الجرد</a>
         </div>
     </div>
+
+    <x-ui.card class="mb-8">
+        <h2 class="ui-title text-xl font-bold mb-4">سجل جرد المنتج</h2>
+        @forelse($inventoryCountHistory as $audit)
+            @php($countItem = $audit->inventoryCountSessionItem)
+            <div class="ui-frame-row">
+                <strong class="ui-title">جرد يوم {{ optional($audit->business_date)->format('Y-m-d') ?: $audit->created_at->format('Y-m-d') }}</strong>
+                @if($countItem)
+                    <span class="block ui-text-soft">كمية المحاسب: {{ $countItem->accountant_quantity }} — الكمية النهائية: {{ $countItem->finalQuantity() }} {{ ['piece'=>'حبة','kit'=>'طقم','meter'=>'متر','roll'=>'رول','unit'=>'وحدة'][$countItem->unit_type] ?? $countItem->unit_type }}</span>
+                    <span class="block ui-text-caption">اعتمد فعليًا: {{ $countItem->approved_at?->format('Y-m-d H:i') }} — {{ $countItem->decision === 'adjusted_approved' ? 'عدّل المالك النتيجة' : 'اعتمد المالك نتيجة المحاسب' }}</span>
+                @else
+                    <span class="block ui-text-soft">سجل جرد سابق قبل تشغيل نظام الجلسات المستقل.</span>
+                @endif
+            </div>
+        @empty<div class="ui-empty-state">لم يسجل جرد لهذا المنتج بعد.</div>@endforelse
+    </x-ui.card>
 
     {{-- نماذج العمليات (توريد / سحب) --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-10">
