@@ -121,11 +121,11 @@ class InventoryCountInterfaceContractTest extends TestCase
     {
         $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/accountant/show.blade.php');
 
-        $this->assertStringContainsString('عند الإرسال ستنتقل الكميات المحفوظة', $view);
+        $this->assertStringContainsString('يرسل الكميات المحفوظة ولقطات المقارنة', $view);
         $this->assertStringContainsString('data-ui-confirm=', $view);
         $this->assertStringContainsString('إرسال نتائج الجرد للمالك', $view);
         $this->assertStringContainsString('جارٍ إرسال النتائج...', $view);
-        $this->assertStringContainsString('خطوة إلزامية:', $view);
+        $this->assertStringContainsString('احفظ كل منتج بعد إدخال كميته', $view);
         $this->assertStringContainsString('احفظ كميات المنتجات أولًا', $view);
         $this->assertStringContainsString('لم يتم إرسال النتائج:', $view);
     }
@@ -144,5 +144,17 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString("PDF::loadView('inventory-counts.pdf'", $controller);
         $this->assertStringContainsString('pendingInventoryCountSessions', $dashboardController);
         $this->assertStringContainsString('طلبات الجرد', $dashboard);
+    }
+
+    public function test_approved_product_exposes_stock_management_without_long_explanatory_blocks(): void
+    {
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+        $accountantView = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/accountant/show.blade.php');
+
+        $this->assertStringContainsString('إدارة مخزون المنتج', $view);
+        $this->assertStringContainsString("route('user.stores.products.stock'", $view);
+        $this->assertStringContainsString('تم تسجيل المنتجات المعتمدة', $view);
+        $this->assertStringNotContainsString('<strong>ما بعد الاعتماد:</strong>', $view);
+        $this->assertStringNotContainsString('<strong>خطوة إلزامية:</strong>', $accountantView);
     }
 }

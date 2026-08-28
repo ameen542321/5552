@@ -20,9 +20,9 @@
         </x-ui.card>
     @endif
     @if($session->items->contains(fn ($item) => in_array($item->decision, ['approved', 'adjusted_approved'], true)))
-        <div class="ui-alert ui-alert-info">
-            <strong>ما بعد الاعتماد:</strong>
-            تسجل النتيجة وتاريخها في سجل جرد المنتج وتكتمل علامة الجرد للدورة، ولا يتغير رصيد المخزون تلقائيًا.
+        <div class="flex items-center gap-2">
+            <x-ui.badge variant="success">تم تسجيل المنتجات المعتمدة</x-ui.badge>
+            <x-ui.help title="ما بعد الاعتماد" body="تسجل النتيجة وتاريخها في سجل جرد المنتج وتكتمل علامة الجرد للدورة. لا يتغير رصيد المخزون تلقائيًا، ويمكن فتح إدارة مخزون المنتج لتنفيذ تسوية مستقلة عند الحاجة." />
         </div>
     @endif
     @if(in_array($session->status, ['pending_owner', 'partially_approved', 'returned_to_accountant']))
@@ -68,6 +68,12 @@
                     </div>
                 @elseif($item->decision !== 'pending' || $item->accountant_quantity !== null)
                     <p class="ui-text-soft mt-3">{{ ['pending'=>'بانتظار مراجعة صاحب المتجر','returned'=>'أعيد للمحاسب لإعادة العد','recounted'=>'حفظ المحاسب نتيجة الإعادة ولم يرسلها بعد','approved'=>'اعتمد صاحب المتجر نتيجة المحاسب','adjusted_approved'=>'عدّل صاحب المتجر الكمية واعتمدها'][$item->decision] ?? $item->decision }} @if($item->owner_quantity !== null)— الكمية النهائية: {{ $item->owner_quantity }}@endif</p>
+                @endif
+                @if(in_array($item->decision, ['approved', 'adjusted_approved'], true) && $item->product && ! $item->product->trashed())
+                    <div class="mt-4 flex items-center gap-2">
+                        <a href="{{ route('user.stores.products.stock', [$store, $item->product]) }}" class="ui-btn ui-btn-secondary">إدارة مخزون المنتج</a>
+                        <x-ui.help title="إدارة مخزون المنتج" body="يفتح سجل وحركات مخزون هذا المنتج. اعتماد الجرد لا يغير الرصيد تلقائيًا، لذلك تنفذ أي زيادة أو سحب كتسوية مستقلة من صفحة المخزون." />
+                    </div>
                 @endif
             </x-ui.card>
         @endforeach

@@ -11,8 +11,9 @@
     </div>
     @if(session('success'))<div class="ui-alert ui-alert-success" role="status">{{ session('success') }}</div>@endif
     @if($errors->any())<div class="ui-alert ui-alert-danger" role="alert"><strong>لم يتم إرسال النتائج:</strong> {{ $errors->first() }}</div>@endif
-    <div class="ui-alert ui-alert-info">
-        <strong>خطوة إلزامية:</strong> بعد إدخال كمية أي منتج اضغط «حفظ كمية المنتج». الكتابة داخل الحقل وحدها لا تثبت الكمية ولا تدخلها ضمن الإرسال للمالك.
+    <div class="flex items-center gap-2">
+        <x-ui.badge variant="info">احفظ كل منتج بعد إدخال كميته</x-ui.badge>
+        <x-ui.help title="تثبيت الكمية" body="الكتابة داخل الحقل وحدها لا تثبت الكمية. اضغط حفظ كمية المنتج حتى تدخل ضمن النتائج التي سترسل إلى المالك." />
     </div>
 
     @foreach($session->items as $item)
@@ -57,16 +58,16 @@
     @endforeach
 
     @php($allItemsSaved = $session->items->isNotEmpty() && $session->items->every(fn ($item) => $item->accountant_quantity !== null && $item->decision !== 'returned'))
-    <div class="ui-alert {{ $allItemsSaved ? 'ui-alert-warning' : 'ui-alert-danger' }}">
-        @unless($allItemsSaved)<strong>الإرسال غير جاهز:</strong> احفظ كمية كل منتج أولًا بواسطة زر «حفظ كمية المنتج».<br>@endunless
-        عند الإرسال ستنتقل الكميات المحفوظة ولقطات المقارنة إلى صاحب المتجر، ولن تتمكن من تعديلها إلا إذا أعاد لك صاحب المتجر منتجًا لإعادة الجرد.
-    </div>
+    @unless($allItemsSaved)<div class="ui-alert ui-alert-danger"><strong>الإرسال غير جاهز:</strong> توجد كمية غير محفوظة.</div>@endunless
     <form method="POST" action="{{ route('accountant.inventory-counts.submit', $session) }}"
           data-ui-confirm="سيتم إرسال جميع نتائج الجرد المحفوظة إلى صاحب المتجر للمراجعة، وسيتوقف تعديلها حتى يعيد لك منتجًا. هل تريد المتابعة؟"
           data-ui-confirm-title="إرسال نتائج الجرد للمالك"
           data-ui-confirm-busy="جارٍ إرسال النتائج...">
         @csrf
-        <button class="ui-btn ui-btn-primary w-full" @disabled(! $allItemsSaved)>{{ $allItemsSaved ? 'إرسال النتائج للمالك' : 'احفظ كميات المنتجات أولًا' }}</button>
+        <div class="flex items-center gap-2">
+            <button class="ui-btn ui-btn-primary flex-1" @disabled(! $allItemsSaved)>{{ $allItemsSaved ? 'إرسال النتائج للمالك' : 'احفظ كميات المنتجات أولًا' }}</button>
+            <x-ui.help title="إرسال النتائج" body="يرسل الكميات المحفوظة ولقطات المقارنة إلى المالك، ثم يتوقف التعديل إلا إذا أعاد المالك منتجًا لإعادة الجرد." />
+        </div>
     </form>
 </div>
 @endsection
