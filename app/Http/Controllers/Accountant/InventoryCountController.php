@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Accountant;
 use App\Http\Controllers\Controller;
 use App\Models\InventoryCountSession;
 use App\Models\InventoryCountSessionItem;
+use App\Models\Product;
 use App\Services\InventoryCountService;
 use App\Services\ShiftLifecycleService;
 use Illuminate\Http\Request;
@@ -24,9 +25,9 @@ class InventoryCountController extends Controller
         $this->authorizeSession($inventoryCount);
         abort_unless(in_array($inventoryCount->status, ['sent_to_accountant', 'counting', 'returned_to_accountant'], true), 403);
         $inventoryCount->load([
-            'items' => fn ($q) => $inventoryCount->status === 'returned_to_accountant'
+            'items' => fn ($q) => ($inventoryCount->status === 'returned_to_accountant'
                 ? $q->where('decision', 'returned')
-                : $q->where('decision', 'pending'),
+                : $q->where('decision', 'pending'))->with('product'),
             'store',
         ]);
         return view('inventory-counts.accountant.show', ['session' => $inventoryCount]);
@@ -36,9 +37,10 @@ class InventoryCountController extends Controller
     {
         $this->authorizeSession($inventoryCount); abort_unless($item->inventory_count_session_id === $inventoryCount->id, 404);
         abort_unless(in_array($inventoryCount->status, ['sent_to_accountant', 'counting', 'returned_to_accountant'], true), 403);
+        $item->loadMissing('product');
         $data = $request->validate([
             'accountant_quantity' => 'required|numeric|min:0',
-            'unit_type' => ['required', Rule::in(['piece', 'kit', 'meter', 'roll', 'unit'])],
+            'unit_type' => ['required', Rule::in($this->allowedUnits($item->product))],
             'accountant_note' => 'nullable|string|max:1000',
         ]);
         $businessDate = app(ShiftLifecycleService::class)->currentShiftContext($inventoryCount->store_id)['business_date'];
@@ -56,5 +58,18 @@ class InventoryCountController extends Controller
     private function authorizeSession(InventoryCountSession $session): void
     {
         abort_unless((int) $session->accountant_id === (int) auth('accountant')->id(), 403);
+    }
+
+    private function allowedUnits(Product $product): array
+    {
+        if ($product->product_type === 'fractional') {
+            return ['roll', 'meter'];
+        }
+
+        if ($product->is_splittable) {
+            return ['kit', 'piece'];
+        }
+
+        return ['piece'];
     }
 }

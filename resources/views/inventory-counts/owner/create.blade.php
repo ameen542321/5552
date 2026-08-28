@@ -61,7 +61,7 @@
             @if($editingSession)<input type="hidden" name="inventory_session" value="{{ $editingSession->id }}">@endif
             <div class="flex items-center gap-2"><h2 class="ui-title text-xl font-bold">إنشاء الجلسة من {{ count($selected) }} منتجات</h2><x-ui.help title="إنشاء الجلسة" body="اختر المحاسب الذي سينفذ العد، ويمكنك إضافة ملاحظة عامة تظهر معه في الجلسة." /></div>
             <label class="block"><span class="ui-label">المحاسب</span><select class="ui-input" name="accountant_id" required><option value="">اختر المحاسب</option>@foreach($accountants as $accountant)<option value="{{ $accountant->id }}" @selected($editingSession?->accountant_id === $accountant->id)>{{ $accountant->name }}</option>@endforeach</select></label>
-            <label class="block"><span class="ui-label">ملاحظة عامة (اختياري)</span><textarea class="ui-input" name="note" rows="2">{{ $editingSession?->note }}</textarea></label>
+            <label class="block"><span class="ui-label">ملاحظة عامة (اختياري)</span><textarea class="ui-input" name="note" rows="2" placeholder="مثال: ابدأ بعد إغلاق قسم المبيعات">{{ $editingSession?->note }}</textarea></label>
             <button class="ui-btn ui-btn-primary">{{ $editingSession ? 'حفظ منتجات الجلسة' : 'الانتقال إلى إدارة الجلسة' }}</button>
         </form>
     @endif

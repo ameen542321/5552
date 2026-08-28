@@ -74,4 +74,18 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('إدارة جلسات الجرد', $storePage);
         $this->assertStringContainsString('حالة جرد المنتجات', $storePage);
     }
+
+    public function test_accountant_fields_explain_draft_save_and_only_offer_relevant_units(): void
+    {
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/accountant/show.blade.php');
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/Accountant/InventoryCountController.php');
+
+        $this->assertStringContainsString('placeholder="مثال: 12"', $view);
+        $this->assertStringContainsString('placeholder="مثال: الكمية موزعة على رفّين"', $view);
+        $this->assertStringContainsString('حفظ كمية المنتج', $view);
+        $this->assertStringContainsString('يحفظ هذا الزر كمية هذا المنتج مؤقتًا', $view);
+        $this->assertStringContainsString("return ['roll', 'meter']", $controller);
+        $this->assertStringContainsString("return ['kit', 'piece']", $controller);
+        $this->assertStringContainsString("Rule::in(\$this->allowedUnits", $controller);
+    }
 }
