@@ -4,11 +4,20 @@
 
 @section('content')
 
+@php
+    $stockReturnUrl = route('user.stores.products.index', $store->id);
+    if (request('return_to') === 'audit') {
+        $stockReturnUrl = route('user.stores.products.audit', $store->id);
+    } elseif (request('return_to') === 'inventory-count' && request()->filled('inventory_count')) {
+        $stockReturnUrl = route('user.stores.inventory-counts.show', [$store->id, request('inventory_count')]);
+    }
+@endphp
+
 <div class="max-w-5xl mx-auto py-10 px-4 sm:px-6" data-inventory-system>
 
     {{-- الهيدر --}}
     <div class="flex items-center justify-between mb-8 gap-4">
-        <a href="{{ request('return_to') === 'audit' ? route('user.stores.products.audit', $store->id) : (request('return_to') === 'inventory-count' && request()->filled('inventory_count') ? route('user.stores.inventory-counts.show', [$store->id, request('inventory_count')]) : route('user.stores.products.index', $store->id)) }}"
+        <a href="{{ $stockReturnUrl }}"
            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg ui-surface-muted-bg border ui-border ui-text-muted ui-hover-info transition shadow-sm">
             <i class="fa-solid fa-arrow-right text-sm"></i>
             <span class="text-sm font-medium">رجوع</span>
