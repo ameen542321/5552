@@ -137,18 +137,22 @@
 
     <x-ui.card class="mb-8">
         <h2 class="ui-title text-xl font-bold mb-4">سجل جرد المنتج</h2>
-        @forelse($inventoryCountHistory as $audit)
-            @php($countItem = $audit->inventoryCountSessionItem)
-            <div class="ui-frame-row">
-                <strong class="ui-title">جرد يوم {{ optional($audit->business_date)->format('Y-m-d') ?: $audit->created_at->format('Y-m-d') }}</strong>
-                @if($countItem)
-                    <span class="block ui-text-soft">كمية المحاسب: {{ $countItem->accountant_quantity }} — الكمية النهائية: {{ $countItem->finalQuantity() }} {{ ['piece'=>'حبة','kit'=>'طقم','meter'=>'متر','roll'=>'رول','unit'=>'وحدة'][$countItem->unit_type] ?? $countItem->unit_type }}</span>
-                    <span class="block ui-text-caption">اعتمد فعليًا: {{ $countItem->approved_at?->format('Y-m-d H:i') }} — {{ $countItem->decision === 'adjusted_approved' ? 'عدّل المالك النتيجة' : 'اعتمد المالك نتيجة المحاسب' }}</span>
-                @else
-                    <span class="block ui-text-soft">سجل جرد سابق قبل تشغيل نظام الجلسات المستقل.</span>
-                @endif
-            </div>
-        @empty<div class="ui-empty-state">لم يسجل جرد لهذا المنتج بعد.</div>@endforelse
+        @if($inventoryCountHistory->isEmpty())
+            <div class="ui-empty-state">لم يسجل جرد لهذا المنتج بعد.</div>
+        @else
+            @foreach($inventoryCountHistory as $audit)
+                @php($countItem = $audit->inventoryCountSessionItem)
+                <div class="ui-frame-row">
+                    <strong class="ui-title">جرد يوم {{ optional($audit->business_date)->format('Y-m-d') ?: $audit->created_at->format('Y-m-d') }}</strong>
+                    @if($countItem)
+                        <span class="block ui-text-soft">كمية المحاسب: {{ $countItem->accountant_quantity }} — الكمية النهائية: {{ $countItem->finalQuantity() }} {{ ['piece'=>'حبة','kit'=>'طقم','meter'=>'متر','roll'=>'رول','unit'=>'وحدة'][$countItem->unit_type] ?? $countItem->unit_type }}</span>
+                        <span class="block ui-text-caption">اعتمد فعليًا: {{ $countItem->approved_at?->format('Y-m-d H:i') }} — {{ $countItem->decision === 'adjusted_approved' ? 'عدّل المالك النتيجة' : 'اعتمد المالك نتيجة المحاسب' }}</span>
+                    @else
+                        <span class="block ui-text-soft">سجل جرد سابق قبل تشغيل نظام الجلسات المستقل.</span>
+                    @endif
+                </div>
+            @endforeach
+        @endif
     </x-ui.card>
 
     {{-- نماذج العمليات (توريد / سحب) --}}
@@ -288,7 +292,15 @@
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-ui-border">
-                    @forelse($movements as $move)
+                    @if($movements->isEmpty())
+                        <tr>
+                            <td colspan="5" class="py-16 text-center">
+                                <i class="fa-solid fa-inbox ui-text-muted text-5xl mb-4 block"></i>
+                                <p class="ui-text-muted italic">لا توجد حركات مخزنية مسجلة حتى الآن</p>
+                            </td>
+                        </tr>
+                    @else
+                    @foreach($movements as $move)
                         @php
                             $movementUnitLabel = $move->snapshotUnitLabel($product);
                             $hasPosReference = preg_match('/POS\s*#(\d+)/u', (string) $move->note, $posMatch);
@@ -345,14 +357,8 @@
                                 {{ $move->created_at->format('H:i A') }}
                             </td>
                         </tr>
-                    @empty
-                        <tr>
-                            <td colspan="5" class="py-16 text-center">
-                                <i class="fa-solid fa-inbox ui-text-muted text-5xl mb-4 block"></i>
-                                <p class="ui-text-muted italic">لا توجد حركات مخزنية مسجلة حتى الآن</p>
-                            </td>
-                        </tr>
-                    @endforelse
+                    @endforeach
+                    @endif
                 </tbody>
             </table>
         </div>
