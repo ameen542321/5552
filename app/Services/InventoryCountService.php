@@ -6,7 +6,9 @@ use App\Models\InventoryCountSession;
 use App\Models\InventoryCountSessionItem;
 use App\Models\InventoryLog;
 use App\Models\Product;
+use App\Models\StockMovement;
 use App\Models\User;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
 
@@ -73,9 +75,9 @@ class InventoryCountService
         });
     }
 
-    public function approveItem(InventoryCountSessionItem $item, User $owner, ?float $ownerQuantity = null, ?string $reason = null): void
+    public function approveItem(InventoryCountSessionItem $item, User $owner, string $approvalBusinessDate, ?float $ownerQuantity = null, ?string $reason = null): void
     {
-        DB::transaction(function () use ($item, $owner, $ownerQuantity, $reason): void {
+        DB::transaction(function () use ($item, $owner, $approvalBusinessDate, $ownerQuantity, $reason): void {
             $locked = InventoryCountSessionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
             $locked->load('session');
             if ($locked->decision !== 'pending' || $locked->session->owner_id !== $owner->id || ! in_array($locked->session->status, ['pending_owner', 'partially_approved', 'returned_to_accountant'], true)) {
@@ -87,6 +89,16 @@ class InventoryCountService
             if ($ownerQuantity !== null && trim((string) $reason) === '') {
                 throw ValidationException::withMessages(['reason' => 'سبب تعديل كمية المحاسب مطلوب.']);
             }
+            if (Carbon::parse($approvalBusinessDate)->startOfDay()->lt($locked->count_business_date->copy()->startOfDay())) {
+                throw ValidationException::withMessages(['approval_business_date' => 'تاريخ الاعتماد لا يمكن أن يكون أقدم من يوم الجرد الذي سجله المحاسب.']);
+            }
+
+            $product = Product::whereKey($locked->product_id)->lockForUpdate()->firstOrFail();
+            $approvedQuantity = $ownerQuantity ?? $locked->accountant_quantity;
+            $approvedStoredQuantity = $this->quantityToStoredUnit($product, (float) $approvedQuantity, $locked->unit_type);
+            $currentStoredQuantity = (float) $product->getRawOriginal('quantity');
+            $currentCountQuantity = $this->systemQuantityInUnit($product, $locked->unit_type);
+            $difference = $approvedStoredQuantity - $currentStoredQuantity;
 
             $locked->update([
                 'owner_quantity' => $ownerQuantity,
@@ -95,16 +107,36 @@ class InventoryCountService
                 'approved_at' => now(),
             ]);
 
-            // الاعتماد يوثق الجرد فقط ولا يغيّر رصيد المخزون؛ التسوية المخزنية تبقى عملية مستقلة وآمنة.
+            $movementType = $difference < 0 ? 'decrease' : 'increase';
+            $differenceLabel = abs($difference) < 0.0001
+                ? 'تم تأكيد الجرد دون تغيير الكمية'
+                : ($difference > 0
+                    ? 'تمت إضافة فرق الجرد إلى المخزون'
+                    : 'تم خصم فرق الجرد من المخزون');
+
+            $product->update(['quantity' => $approvedStoredQuantity]);
+            StockMovement::recordForProduct(
+                $product,
+                $movementType,
+                abs($difference),
+                $currentStoredQuantity,
+                $approvedStoredQuantity,
+                $owner->id,
+                'تأكيد جرد المنتج — '.$differenceLabel.' — جلسة '.$locked->session->referenceCode(),
+                abs((float) $approvedQuantity - $currentCountQuantity),
+                $locked->unit_type,
+                $approvalBusinessDate
+            );
+
             InventoryLog::create([
                 'store_id' => $locked->session->store_id,
                 'user_id' => $owner->id,
                 'product_id' => $locked->product_id,
                 'inventory_count_session_item_id' => $locked->id,
-                'quantity_change' => 0,
-                'quantity_snapshot' => $ownerQuantity ?? $locked->accountant_quantity,
+                'quantity_change' => $difference,
+                'quantity_snapshot' => $approvedQuantity,
                 'type' => Product::INVENTORY_AUDIT_CONFIRMED_TYPE,
-                'business_date' => $locked->count_business_date,
+                'business_date' => $approvalBusinessDate,
             ]);
 
             $this->refreshSessionStatus($locked->session);
@@ -124,9 +156,9 @@ class InventoryCountService
         });
     }
 
-    public function approveSelectedItems(InventoryCountSession $session, User $owner, array $itemIds): void
+    public function approveSelectedItems(InventoryCountSession $session, User $owner, array $itemIds, string $approvalBusinessDate): void
     {
-        DB::transaction(function () use ($session, $owner, $itemIds): void {
+        DB::transaction(function () use ($session, $owner, $itemIds, $approvalBusinessDate): void {
             $lockedSession = InventoryCountSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
             if ($lockedSession->owner_id !== $owner->id || ! in_array($lockedSession->status, ['pending_owner', 'partially_approved', 'returned_to_accountant'], true)) {
                 throw ValidationException::withMessages(['items' => 'الجلسة غير متاحة للاعتماد حاليًا.']);
@@ -138,7 +170,7 @@ class InventoryCountService
             }
 
             foreach ($items as $item) {
-                $this->approveItem($item, $owner);
+                $this->approveItem($item, $owner, $approvalBusinessDate);
             }
         });
     }
@@ -161,6 +193,15 @@ class InventoryCountService
             'roll' => (float) $product->roll_length > 0 ? $stored / (float) $product->roll_length : $stored,
             'piece' => $product->is_splittable ? $stored * max(1, (int) $product->items_per_unit) : $stored,
             default => $stored,
+        };
+    }
+
+    private function quantityToStoredUnit(Product $product, float $quantity, string $unitType): float
+    {
+        return match ($unitType) {
+            'roll' => (float) $product->roll_length > 0 ? $quantity * (float) $product->roll_length : $quantity,
+            'piece' => $product->is_splittable ? $quantity / max(1, (int) $product->items_per_unit) : $quantity,
+            default => $quantity,
         };
     }
 }

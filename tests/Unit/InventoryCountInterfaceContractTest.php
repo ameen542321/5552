@@ -98,7 +98,7 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('وقت المقارنة:', $view);
         $this->assertStringContainsString('inventory-bulk-approval', $view);
         $this->assertStringContainsString('اعتماد المنتجات المحددة', $view);
-        $this->assertStringContainsString('لا يتغير رصيد المخزون تلقائيًا', $view);
+        $this->assertStringContainsString('تُثبت الكمية المعتمدة في المخزون', $view);
         $this->assertStringContainsString('system_snapshot_at', $service);
         $this->assertStringContainsString("['returned', 'recounted']", $service);
     }
@@ -173,5 +173,21 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('إلغاء الجلسة', $ownerView);
         $this->assertStringContainsString("'return_to' => 'inventory-count'", $ownerView);
         $this->assertStringContainsString("request('return_to') === 'inventory-count'", $stockView);
+    }
+
+    public function test_inventory_approval_reconciles_stock_with_the_selected_business_date(): void
+    {
+        $service = file_get_contents(__DIR__.'/../../app/Services/InventoryCountService.php');
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+
+        $this->assertStringContainsString('quantityToStoredUnit', $service);
+        $this->assertStringContainsString('StockMovement::recordForProduct', $service);
+        $this->assertStringContainsString('تمت إضافة فرق الجرد إلى المخزون', $service);
+        $this->assertStringContainsString('تم خصم فرق الجرد من المخزون', $service);
+        $this->assertStringContainsString('تاريخ الاعتماد لا يمكن أن يكون أقدم', $service);
+        $this->assertStringContainsString("'business_date' => \$approvalBusinessDate", $service);
+        $this->assertStringContainsString("'approval_business_date' => 'required|date'", $controller);
+        $this->assertStringContainsString('name="approval_business_date"', $view);
     }
 }

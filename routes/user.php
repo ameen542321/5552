@@ -223,6 +223,14 @@ Route::middleware(['owner.unified'])->prefix('user')->name('user.')->group(funct
                     Route::post('/', [ProductController::class, 'store'])->name('store');
                     Route::get('/export/csv', [ProductController::class, 'exportCsv'])->name('export.csv');
                     Route::post('/import/csv', [ProductController::class, 'importCsv'])->name('import.csv');
+
+                    // يجب تسجيل مسارات المخزون قبل مسارات المنتج الديناميكية حتى لا تلتقطها تلك المسارات.
+                    Route::get('/{product}/stock', [ProductStockController::class, 'index'])->name('stock');
+                    Route::post('/{product}/stock/audit-confirm', [ProductStockController::class, 'confirmAudit'])->name('stock.audit-confirm');
+                    Route::delete('/{product}/stock/audit-confirm', [ProductStockController::class, 'cancelAuditConfirmation'])->name('stock.audit-confirm.cancel');
+                    Route::post('/{product}/stock/increase', [ProductStockController::class, 'increase'])->name('stock.increase');
+                    Route::post('/{product}/stock/decrease', [ProductStockController::class, 'decrease'])->name('stock.decrease');
+
                     Route::get('/{product}/price-history', [ProductController::class, 'priceHistory'])->name('price-history');
                     Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
                     Route::put('/{product}', [ProductController::class, 'update'])->name('update');
@@ -234,12 +242,6 @@ Route::middleware(['owner.unified'])->prefix('user')->name('user.')->group(funct
                     Route::delete('/{id}/force-delete', [ProductController::class, 'forcedelete'])->name('force-delete');
                     Route::patch('/{id}/archive-message', [ProductController::class, 'updateArchiveMessage'])->name('archive-message');
 
-                    // إدارة المخزون الفردي
-                    Route::get('/{product}/stock', [ProductStockController::class, 'index'])->name('stock');
-                    Route::post('/{product}/stock/audit-confirm', [ProductStockController::class, 'confirmAudit'])->name('stock.audit-confirm');
-                    Route::delete('/{product}/stock/audit-confirm', [ProductStockController::class, 'cancelAuditConfirmation'])->name('stock.audit-confirm.cancel');
-                    Route::post('/{product}/stock/increase', [ProductStockController::class, 'increase'])->name('stock.increase');
-                    Route::post('/{product}/stock/decrease', [ProductStockController::class, 'decrease'])->name('stock.decrease');
                 });
 
                 // صفحة المصروفات الخاصة بالمالك داخل المتجر: متابعة وإضافة وتعديل وحذف.

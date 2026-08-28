@@ -34,13 +34,14 @@
     @if($session->items->contains(fn ($item) => in_array($item->decision, ['approved', 'adjusted_approved'], true)))
         <div class="flex items-center gap-2">
             <x-ui.badge variant="success">تم تسجيل المنتجات المعتمدة</x-ui.badge>
-            <x-ui.help title="ما بعد الاعتماد" body="تسجل النتيجة وتاريخها في سجل جرد المنتج وتكتمل علامة الجرد للدورة. لا يتغير رصيد المخزون تلقائيًا، ويمكن فتح إدارة مخزون المنتج لتنفيذ تسوية مستقلة عند الحاجة." />
+            <x-ui.help title="ما بعد الاعتماد" body="تُثبت الكمية المعتمدة في المخزون. إذا وُجد فرق يسجل النظام الزيادة أو النقص تلقائيًا في اليوم المحاسبي المختار." />
         </div>
     @endif
     @if(in_array($session->status, ['pending_owner', 'partially_approved', 'returned_to_accountant']))
         <form id="inventory-bulk-approval" method="POST" action="{{ route('user.stores.inventory-counts.bulk-approve', [$store, $session]) }}" class="ui-card p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             @csrf
             <div class="flex items-center gap-2"><strong class="ui-title">اعتماد مجموعة منتجات</strong><x-ui.help title="الاعتماد الجماعي" body="حدد المنتجات التي تريد اعتماد كمية المحاسب لها، ثم اضغط اعتماد المنتجات المحددة. يمكنك ترك بقية المنتجات للمراجعة أو إعادتها للمحاسب." /></div>
+            <div><label class="ui-label" for="bulk-approval-date">اليوم المحاسبي</label><input id="bulk-approval-date" class="ui-input" type="date" name="approval_business_date" value="{{ $currentBusinessDate }}" min="{{ $session->items->max(fn ($item) => $item->count_business_date?->format('Y-m-d')) }}" required></div>
             <button class="ui-btn ui-btn-success">اعتماد المنتجات المحددة</button>
         </form>
     @endif
@@ -76,8 +77,8 @@
                 </div>
                 @if(in_array($session->status, ['pending_owner', 'partially_approved', 'returned_to_accountant']) && $item->decision === 'pending')
                     <div class="mt-4 grid gap-3 lg:grid-cols-3">
-                        <form method="POST" action="{{ route('user.stores.inventory-counts.items.decision', [$store, $session, $item]) }}">@csrf<input type="hidden" name="action" value="approve"><button class="ui-btn ui-btn-success w-full">اعتماد كمية المحاسب</button></form>
-                        <form method="POST" action="{{ route('user.stores.inventory-counts.items.decision', [$store, $session, $item]) }}" class="space-y-2">@csrf<input type="hidden" name="action" value="adjust"><input class="ui-input" name="owner_quantity" type="number" min="0" step="0.001" required placeholder="الكمية الصحيحة"><input class="ui-input" name="reason" required minlength="5" placeholder="سبب التعديل"><button class="ui-btn ui-btn-warning w-full">تعديل واعتماد</button></form>
+                        <form method="POST" action="{{ route('user.stores.inventory-counts.items.decision', [$store, $session, $item]) }}" class="space-y-2">@csrf<input type="hidden" name="action" value="approve"><input class="ui-input" type="date" name="approval_business_date" value="{{ $currentBusinessDate }}" min="{{ $item->count_business_date?->format('Y-m-d') }}" required aria-label="اليوم المحاسبي للاعتماد"><button class="ui-btn ui-btn-success w-full">اعتماد كمية المحاسب</button></form>
+                        <form method="POST" action="{{ route('user.stores.inventory-counts.items.decision', [$store, $session, $item]) }}" class="space-y-2">@csrf<input type="hidden" name="action" value="adjust"><input class="ui-input" type="date" name="approval_business_date" value="{{ $currentBusinessDate }}" min="{{ $item->count_business_date?->format('Y-m-d') }}" required aria-label="اليوم المحاسبي للاعتماد"><input class="ui-input" name="owner_quantity" type="number" min="0" step="0.001" required placeholder="الكمية الصحيحة"><input class="ui-input" name="reason" required minlength="5" placeholder="سبب التعديل"><button class="ui-btn ui-btn-warning w-full">تعديل واعتماد</button></form>
                         <form method="POST" action="{{ route('user.stores.inventory-counts.items.decision', [$store, $session, $item]) }}" class="space-y-2">@csrf<input type="hidden" name="action" value="return"><input class="ui-input" name="reason" required minlength="5" placeholder="سبب إعادة الجرد"><button class="ui-btn ui-btn-secondary w-full">إعادة للمحاسب</button></form>
                     </div>
                 @elseif($item->decision !== 'pending' || $item->accountant_quantity !== null)
@@ -86,7 +87,7 @@
                 @if(in_array($item->decision, ['approved', 'adjusted_approved'], true) && $item->product && ! $item->product->trashed())
                     <div class="mt-4 flex items-center gap-2">
                         <a href="{{ route('user.stores.products.stock', ['store' => $store->id, 'product' => $item->product_id, 'return_to' => 'inventory-count', 'inventory_count' => $session->id]) }}" class="ui-btn ui-btn-secondary">إدارة مخزون المنتج</a>
-                        <x-ui.help title="إدارة مخزون المنتج" body="يفتح سجل وحركات مخزون هذا المنتج. اعتماد الجرد لا يغير الرصيد تلقائيًا، لذلك تنفذ أي زيادة أو سحب كتسوية مستقلة من صفحة المخزون." />
+                        <x-ui.help title="إدارة مخزون المنتج" body="يفتح سجل المنتج لمراجعة حركة تأكيد الجرد وأي زيادة أو نقص نتج عنها." />
                     </div>
                 @endif
             </x-ui.card>

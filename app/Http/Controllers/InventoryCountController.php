@@ -10,6 +10,7 @@ use App\Models\Store;
 use App\Models\StockMovement;
 use App\Services\InventoryCountService;
 use App\Services\NotificationService;
+use App\Services\ShiftLifecycleService;
 use App\Support\ArabicPdf as PDF;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -86,6 +87,7 @@ class InventoryCountController extends Controller
     {
         $this->ownerStore($store); $this->ensureSessionStore($inventoryCount, $store);
         $inventoryCount->load(['items.product', 'accountant']);
+        $currentBusinessDate = app(ShiftLifecycleService::class)->currentShiftContext($store->id)['business_date'];
         $legacyAudits = InventoryLog::with('user')
             ->where('store_id', $store->id)
             ->whereIn('product_id', $inventoryCount->items->pluck('product_id'))
@@ -107,7 +109,7 @@ class InventoryCountController extends Controller
             ->unique('product_id')
             ->keyBy('product_id');
 
-        return view('inventory-counts.owner.show', compact('store', 'legacyAudits', 'legacyAuditMovements') + ['session' => $inventoryCount]);
+        return view('inventory-counts.owner.show', compact('store', 'legacyAudits', 'legacyAuditMovements', 'currentBusinessDate') + ['session' => $inventoryCount]);
     }
 
     public function send(Store $store, InventoryCountSession $inventoryCount)
@@ -122,9 +124,9 @@ class InventoryCountController extends Controller
     public function decide(Request $request, Store $store, InventoryCountSession $inventoryCount, InventoryCountSessionItem $item, InventoryCountService $service)
     {
         $this->ownerStore($store); $this->ensureSessionStore($inventoryCount, $store); abort_unless($item->inventory_count_session_id === $inventoryCount->id, 404);
-        $data = $request->validate(['action' => ['required', Rule::in(['approve', 'adjust', 'return'])], 'owner_quantity' => 'required_if:action,adjust|nullable|numeric|min:0', 'reason' => 'required_if:action,adjust,return|nullable|string|min:5|max:1000']);
+        $data = $request->validate(['action' => ['required', Rule::in(['approve', 'adjust', 'return'])], 'approval_business_date' => 'required_unless:action,return|nullable|date', 'owner_quantity' => 'required_if:action,adjust|nullable|numeric|min:0', 'reason' => 'required_if:action,adjust,return|nullable|string|min:5|max:1000']);
         if ($data['action'] === 'return') { if (mb_strlen(trim((string) ($data['reason'] ?? ''))) < 5) throw ValidationException::withMessages(['reason' => 'اكتب سببًا واضحًا لإعادة المنتج للمحاسب.']); $service->returnItem($item, auth('web')->user(), $data['reason']); }
-        else { $service->approveItem($item, auth('web')->user(), $data['action'] === 'adjust' ? (float) $data['owner_quantity'] : null, $data['reason'] ?? null); }
+        else { $service->approveItem($item, auth('web')->user(), $data['approval_business_date'], $data['action'] === 'adjust' ? (float) $data['owner_quantity'] : null, $data['reason'] ?? null); }
         return back()->with('success', 'تم حفظ قرارك للمنتج.');
     }
 
@@ -135,9 +137,10 @@ class InventoryCountController extends Controller
         $data = $request->validate([
             'items' => 'required|array|min:1',
             'items.*' => 'required|integer|distinct',
+            'approval_business_date' => 'required|date',
         ], ['items.required' => 'حدد منتجًا واحدًا على الأقل للاعتماد.']);
 
-        $service->approveSelectedItems($inventoryCount, auth('web')->user(), array_map('intval', $data['items']));
+        $service->approveSelectedItems($inventoryCount, auth('web')->user(), array_map('intval', $data['items']), $data['approval_business_date']);
 
         return back()->with('success', 'تم اعتماد المنتجات المحددة وتسجيلها في سجل الجرد.');
     }
