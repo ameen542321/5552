@@ -3,7 +3,7 @@
 @section('content')
 <div class="max-w-6xl mx-auto space-y-5">
     <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div><h1 class="ui-title text-2xl font-bold">جلسات جرد {{ $store->name }}</h1><p class="ui-text-soft mt-1">أنشئ الجرد وتابع ما أرسله المحاسب واعتمد النتائج.</p></div>
+        <div class="flex items-center gap-2"><h1 class="ui-title text-2xl font-bold">جلسات جرد {{ $store->name }}</h1><x-ui.help title="جلسات الجرد" body="من هنا تنشئ جلسة الجرد، وتتابع ما أرسله المحاسب، ثم تعتمد النتائج أو تعيد المنتجات التي تحتاج إلى عد جديد." /></div>
         <a class="ui-btn ui-btn-primary" href="{{ route('user.stores.inventory-counts.create', $store) }}">إنشاء جلسة جرد</a>
     </div>
     <x-ui.card>

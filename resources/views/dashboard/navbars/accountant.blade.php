@@ -152,12 +152,36 @@
    {{-- بطاقتان في كل سطر كما كان ترتيب قائمة المحاسب المعتمد. --}}
    <div class="grid grid-cols-2 gap-2">
 
-    <a href="{{ route('accountant.inventory-counts.index') }}"
-       class="ui-mobile-action-card group relative">
-        <i class="fa-solid fa-clipboard-check ui-mobile-action-icon"></i>
-        <span class="ui-text-caption font-bold uppercase">مهام الجرد</span>
-        <span class="ui-tooltip-popover ui-tooltip-popover-top">إدخال الكميات الفعلية المرسلة من المالك</span>
-    </a>
+    <div class="contents" x-data="{ openAdministrativeTasks: false }">
+        <button type="button"
+                @click="openAdministrativeTasks = !openAdministrativeTasks"
+                :aria-expanded="openAdministrativeTasks.toString()"
+                aria-controls="accountant-administrative-tasks"
+                class="ui-mobile-action-card group relative">
+            <i class="fa-solid fa-list-check ui-mobile-action-icon" aria-hidden="true"></i>
+            <span class="ui-text-caption font-bold uppercase">مهام إدارية</span>
+            <span class="ui-tooltip-popover ui-tooltip-popover-top">فتح النقل المخزني وطلبيات التوريد ومهام الجرد</span>
+        </button>
+
+        <div id="accountant-administrative-tasks"
+             x-show="openAdministrativeTasks"
+             x-cloak
+             x-transition
+             class="col-span-2 grid grid-cols-3 gap-2 ui-card p-3">
+            <a href="{{ route('accountant.transfers.index') }}" class="ui-mobile-action-card" aria-label="فتح النقل المخزني">
+                <i class="fa-solid fa-right-left ui-mobile-action-icon" aria-hidden="true"></i>
+                <span class="ui-text-caption font-bold">النقل المخزني</span>
+            </a>
+            <a href="{{ route('accountant.purchase-orders.index') }}" class="ui-mobile-action-card" aria-label="فتح طلبيات التوريد">
+                <i class="fa-solid fa-clipboard-list ui-mobile-action-icon" aria-hidden="true"></i>
+                <span class="ui-text-caption font-bold">طلبيات التوريد</span>
+            </a>
+            <a href="{{ route('accountant.inventory-counts.index') }}" class="ui-mobile-action-card" aria-label="فتح مهام الجرد">
+                <i class="fa-solid fa-clipboard-check ui-mobile-action-icon" aria-hidden="true"></i>
+                <span class="ui-text-caption font-bold">مهام الجرد</span>
+            </a>
+        </div>
+    </div>
 
     {{-- ⭐ البيع السريع --}}
     <a href="{{ route('accountant.quick-sale.index') }}"
@@ -236,24 +260,6 @@
         </span>
     </a>
 
-
-    {{-- زران مستقلان في مساحة بطاقة واحدة، بدون تولتيب. --}}
-    <div class="ui-mobile-split-card" aria-label="الطلبيات والنقل المخزني">
-        <a href="{{ route('accountant.purchase-orders.index') }}" class="ui-mobile-split-action" aria-label="فتح طلبيات التوريد">
-            <span class="ui-mobile-split-action-main">
-                <i class="fa-solid fa-clipboard-list ui-mobile-action-icon" aria-hidden="true"></i>
-                <span>طلبيات التوريد</span>
-            </span>
-            <i class="fa-solid fa-chevron-left ui-mobile-split-arrow" aria-hidden="true"></i>
-        </a>
-        <a href="{{ route('accountant.transfers.index') }}" class="ui-mobile-split-action" aria-label="فتح النقل المخزني">
-            <span class="ui-mobile-split-action-main">
-                <i class="fa-solid fa-right-left ui-mobile-action-icon" aria-hidden="true"></i>
-                <span>النقل المخزني</span>
-            </span>
-            <i class="fa-solid fa-chevron-left ui-mobile-split-arrow" aria-hidden="true"></i>
-        </a>
-    </div>
 
     {{-- ⭐ تحصيل --}}
     <a href="{{ route('accountant.pos.collection.page') }}" class="ui-mobile-action-card group relative">

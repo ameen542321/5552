@@ -39,6 +39,7 @@ class InventoryCountController extends Controller
         $search = trim((string) $request->query('q'));
         $products = Product::query()->where('store_id', $store->id)->where(fn ($q) => $q->where('usage_type', '!=', Product::USAGE_TYPE_OWNER_PURCHASE)->orWhereNull('usage_type'))
             ->when($search, fn ($q) => $q->where(fn ($x) => $x->where('name', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%")))
+            ->with('category')
             ->withMax(['inventoryLogs as last_audit_date' => fn ($q) => $q->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)], 'business_date')
             ->orderByRaw('last_audit_date IS NOT NULL')->orderBy('last_audit_date')->orderBy('name')->paginate(20)->withQueryString();
         $accountants = $store->accountants()->where('status', 'active')->orderBy('name')->get();
