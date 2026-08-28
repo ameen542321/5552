@@ -26,14 +26,14 @@ class InventoryCountController extends Controller
         abort_unless(in_array($inventoryCount->status, ['sent_to_accountant', 'counting', 'returned_to_accountant'], true), 403);
         $inventoryCount->load([
             'items' => fn ($q) => ($inventoryCount->status === 'returned_to_accountant'
-                ? $q->where('decision', 'returned')
+                ? $q->whereIn('decision', ['returned', 'recounted'])
                 : $q->where('decision', 'pending'))->with('product'),
             'store',
         ]);
         return view('inventory-counts.accountant.show', ['session' => $inventoryCount]);
     }
 
-    public function update(Request $request, InventoryCountSession $inventoryCount, InventoryCountSessionItem $item)
+    public function update(Request $request, InventoryCountSession $inventoryCount, InventoryCountSessionItem $item, InventoryCountService $service)
     {
         $this->authorizeSession($inventoryCount); abort_unless($item->inventory_count_session_id === $inventoryCount->id, 404);
         abort_unless(in_array($inventoryCount->status, ['sent_to_accountant', 'counting', 'returned_to_accountant'], true), 403);
@@ -44,8 +44,10 @@ class InventoryCountController extends Controller
             'accountant_note' => 'nullable|string|max:1000',
         ]);
         $businessDate = app(ShiftLifecycleService::class)->currentShiftContext($inventoryCount->store_id)['business_date'];
-        $item->update($data + ['count_business_date' => $businessDate, 'accountant_updated_at' => now(), 'decision' => 'pending']);
-        $inventoryCount->update(['status' => 'counting']);
+        $service->saveAccountantCount($item, $data, $businessDate);
+        if ($inventoryCount->status !== 'returned_to_accountant') {
+            $inventoryCount->update(['status' => 'counting']);
+        }
         return back()->with('success', 'تم حفظ كمية المنتج وتسجيل اليوم تلقائيًا.');
     }
 

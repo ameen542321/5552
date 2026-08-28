@@ -12,6 +12,26 @@ use Illuminate\Validation\ValidationException;
 
 class InventoryCountService
 {
+    public function saveAccountantCount(InventoryCountSessionItem $item, array $data, string $businessDate): InventoryCountSessionItem
+    {
+        return DB::transaction(function () use ($item, $data, $businessDate): InventoryCountSessionItem {
+            $lockedItem = InventoryCountSessionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
+            $product = Product::withTrashed()->whereKey($lockedItem->product_id)->lockForUpdate()->firstOrFail();
+            $capturedAt = now();
+
+            $lockedItem->update($data + [
+                'count_business_date' => $businessDate,
+                'accountant_updated_at' => $capturedAt,
+                // تحفظ لقطة النظام في نفس معاملة ووقت حفظ كمية المحاسب، ولا تعرض للمحاسب.
+                'system_quantity_snapshot' => $this->systemQuantityInUnit($product, $data['unit_type']),
+                'system_snapshot_at' => $capturedAt,
+                'decision' => in_array($lockedItem->decision, ['returned', 'recounted'], true) ? 'recounted' : 'pending',
+            ]);
+
+            return $lockedItem->fresh('product');
+        });
+    }
+
     public function submitByAccountant(InventoryCountSession $session): InventoryCountSession
     {
         return DB::transaction(function () use ($session): InventoryCountSession {
@@ -20,17 +40,22 @@ class InventoryCountService
                 throw ValidationException::withMessages(['session' => 'جلسة الجرد ليست متاحة للإرسال حاليًا.']);
             }
             $locked->load('items.product');
-            if ($locked->items->contains(fn ($item) => $item->accountant_quantity === null)) {
+            $itemsToSubmit = $locked->status === 'returned_to_accountant'
+                ? $locked->items->whereIn('decision', ['returned', 'recounted'])
+                : $locked->items->where('decision', 'pending');
+            if ($itemsToSubmit->isEmpty() || $itemsToSubmit->contains(fn ($item) => $item->accountant_quantity === null)) {
                 throw ValidationException::withMessages(['items' => 'أدخل كمية الجرد لكل المنتجات قبل الإرسال للمالك.']);
             }
 
-            foreach ($locked->items->whereIn('decision', ['pending', 'returned']) as $item) {
-                $item->update([
-                    // نحول رصيد النظام إلى الوحدة التي عدّ بها المحاسب حتى تكون المقارنة عادلة.
-                    'system_quantity_snapshot' => $this->systemQuantityInUnit($item),
-                    'system_snapshot_at' => now(),
-                    'decision' => 'pending',
-                ]);
+            foreach ($itemsToSubmit as $item) {
+                // السجلات الجديدة تحمل لقطة وقت حفظ المحاسب؛ هذا الاستدراك للسجلات القديمة فقط.
+                if ($item->system_quantity_snapshot === null || $item->system_snapshot_at === null) {
+                    $item->update([
+                        'system_quantity_snapshot' => $this->systemQuantityInUnit($item->product, $item->unit_type),
+                        'system_snapshot_at' => $item->accountant_updated_at ?? now(),
+                    ]);
+                }
+                $item->update(['decision' => 'pending']);
             }
             $locked->update(['status' => 'pending_owner', 'submitted_to_owner_at' => now()]);
 
@@ -53,7 +78,7 @@ class InventoryCountService
         DB::transaction(function () use ($item, $owner, $ownerQuantity, $reason): void {
             $locked = InventoryCountSessionItem::whereKey($item->id)->lockForUpdate()->firstOrFail();
             $locked->load('session');
-            if ($locked->session->owner_id !== $owner->id || ! in_array($locked->session->status, ['pending_owner', 'partially_approved', 'returned_to_accountant'], true)) {
+            if ($locked->decision !== 'pending' || $locked->session->owner_id !== $owner->id || ! in_array($locked->session->status, ['pending_owner', 'partially_approved', 'returned_to_accountant'], true)) {
                 throw ValidationException::withMessages(['item' => 'هذا المنتج غير متاح للاعتماد.']);
             }
             if ($locked->accountant_quantity === null || ! $locked->count_business_date) {
@@ -99,6 +124,25 @@ class InventoryCountService
         });
     }
 
+    public function approveSelectedItems(InventoryCountSession $session, User $owner, array $itemIds): void
+    {
+        DB::transaction(function () use ($session, $owner, $itemIds): void {
+            $lockedSession = InventoryCountSession::whereKey($session->id)->lockForUpdate()->firstOrFail();
+            if ($lockedSession->owner_id !== $owner->id || ! in_array($lockedSession->status, ['pending_owner', 'partially_approved', 'returned_to_accountant'], true)) {
+                throw ValidationException::withMessages(['items' => 'الجلسة غير متاحة للاعتماد حاليًا.']);
+            }
+
+            $items = $lockedSession->items()->whereIn('id', $itemIds)->where('decision', 'pending')->lockForUpdate()->get();
+            if ($items->count() !== count(array_unique($itemIds))) {
+                throw ValidationException::withMessages(['items' => 'بعض المنتجات المحددة غير متاحة للاعتماد.']);
+            }
+
+            foreach ($items as $item) {
+                $this->approveItem($item, $owner);
+            }
+        });
+    }
+
     private function refreshSessionStatus(InventoryCountSession $session): void
     {
         $session->refresh();
@@ -109,12 +153,11 @@ class InventoryCountService
             : ['status' => $hasReturned ? 'returned_to_accountant' : 'partially_approved']);
     }
 
-    private function systemQuantityInUnit(InventoryCountSessionItem $item): float
+    private function systemQuantityInUnit(Product $product, string $unitType): float
     {
-        $product = $item->product;
         $stored = (float) $product->getRawOriginal('quantity');
 
-        return match ($item->unit_type) {
+        return match ($unitType) {
             'roll' => (float) $product->roll_length > 0 ? $stored / (float) $product->roll_length : $stored,
             'piece' => $product->is_splittable ? $stored * max(1, (int) $product->items_per_unit) : $stored,
             default => $stored,

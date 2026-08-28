@@ -104,6 +104,20 @@ class InventoryCountController extends Controller
         return back()->with('success', 'تم حفظ قرارك للمنتج.');
     }
 
+    public function bulkApprove(Request $request, Store $store, InventoryCountSession $inventoryCount, InventoryCountService $service)
+    {
+        $this->ownerStore($store);
+        $this->ensureSessionStore($inventoryCount, $store);
+        $data = $request->validate([
+            'items' => 'required|array|min:1',
+            'items.*' => 'required|integer|distinct',
+        ], ['items.required' => 'حدد منتجًا واحدًا على الأقل للاعتماد.']);
+
+        $service->approveSelectedItems($inventoryCount, auth('web')->user(), array_map('intval', $data['items']));
+
+        return back()->with('success', 'تم اعتماد المنتجات المحددة وتسجيلها في سجل الجرد.');
+    }
+
     public function destroy(Store $store, InventoryCountSession $inventoryCount)
     {
         $this->ownerStore($store); $this->ensureSessionStore($inventoryCount, $store); abort_unless($inventoryCount->status === 'draft', 422);

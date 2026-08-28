@@ -88,4 +88,18 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString("return ['kit', 'piece']", $controller);
         $this->assertStringContainsString("Rule::in(\$this->allowedUnits", $controller);
     }
+
+    public function test_owner_comparison_explains_snapshot_time_and_supports_bulk_approval(): void
+    {
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+        $service = file_get_contents(__DIR__.'/../../app/Services/InventoryCountService.php');
+
+        $this->assertStringContainsString('كمية النظام وقت حفظ المحاسب', $view);
+        $this->assertStringContainsString('وقت المقارنة:', $view);
+        $this->assertStringContainsString('inventory-bulk-approval', $view);
+        $this->assertStringContainsString('اعتماد المنتجات المحددة', $view);
+        $this->assertStringContainsString('لا يتغير رصيد المخزون تلقائيًا', $view);
+        $this->assertStringContainsString('system_snapshot_at', $service);
+        $this->assertStringContainsString("['returned', 'recounted']", $service);
+    }
 }

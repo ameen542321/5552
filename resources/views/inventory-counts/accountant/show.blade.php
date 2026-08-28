@@ -23,7 +23,7 @@
             @method('PUT')
             <div>
                 <h2 class="ui-title text-lg font-bold">{{ $item->product_name_snapshot }}</h2>
-                @if($item->decision === 'returned')<p class="ui-status-warning mt-2">أعاده المالك: {{ $item->owner_adjustment_reason }}</p>@endif
+                @if(in_array($item->decision, ['returned', 'recounted']))<p class="ui-status-warning mt-2">أعاده المالك: {{ $item->owner_adjustment_reason }}</p>@endif
             </div>
             <div class="grid gap-3 sm:grid-cols-2">
                 <label>
