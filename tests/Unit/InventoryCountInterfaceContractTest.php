@@ -102,4 +102,28 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('system_snapshot_at', $service);
         $this->assertStringContainsString("['returned', 'recounted']", $service);
     }
+
+    public function test_temporary_single_product_mode_is_visible_and_legacy_audit_is_the_fallback(): void
+    {
+        $index = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/index.blade.php');
+        $create = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/create.blade.php');
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $show = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+
+        $this->assertStringContainsString('تنبيه اختبار مؤقت', $index);
+        $this->assertStringContainsString('إعادة الحد الأدنى إلى خمسة منتجات', $index);
+        $this->assertStringContainsString('count($selected) >= 1', $create);
+        $this->assertStringContainsString("whereNull('inventory_count_session_item_id')", $controller);
+        $this->assertStringContainsString('آخر جرد سابق:', $show);
+    }
+
+    public function test_accountant_submit_explains_and_confirms_what_will_happen(): void
+    {
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/accountant/show.blade.php');
+
+        $this->assertStringContainsString('عند الإرسال ستنتقل الكميات المحفوظة', $view);
+        $this->assertStringContainsString('data-ui-confirm=', $view);
+        $this->assertStringContainsString('إرسال نتائج الجرد للمالك', $view);
+        $this->assertStringContainsString('جارٍ إرسال النتائج...', $view);
+    }
 }

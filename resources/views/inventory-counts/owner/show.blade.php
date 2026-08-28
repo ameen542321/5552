@@ -25,6 +25,7 @@
     @endif
     <div class="space-y-4">
         @foreach($session->items as $item)
+            @php($legacyAudit = $legacyAudits->get($item->product_id))
             <x-ui.card>
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div class="flex items-start gap-3">
@@ -34,7 +35,12 @@
                         <div><h2 class="ui-title text-lg font-bold">{{ $item->product_name_snapshot }}</h2><p class="ui-text-caption mt-2">الوحدة: {{ ['piece'=>'حبة','kit'=>'طقم','meter'=>'متر','roll'=>'رول','unit'=>'وحدة'][$item->unit_type] ?? $item->unit_type }}</p></div>
                     </div>
                     @if($item->accountant_quantity === null)
-                        <x-ui.badge variant="info">بانتظار المحاسب</x-ui.badge>
+                        <div class="flex flex-col items-end gap-2">
+                            <x-ui.badge variant="info">بانتظار المحاسب</x-ui.badge>
+                            @if($legacyAudit)
+                                <span class="ui-text-caption">آخر جرد سابق: {{ optional($legacyAudit->business_date)->format('Y-m-d') ?: $legacyAudit->created_at?->format('Y-m-d') }} @if($legacyAudit->user)— بواسطة {{ $legacyAudit->user->name }}@endif</span>
+                            @endif
+                        </div>
                     @elseif($item->decision === 'recounted')
                         <x-ui.badge variant="info">حفظ المحاسب نتيجة الإعادة ولم يرسلها بعد</x-ui.badge>
                     @elseif(! in_array($session->status, ['pending_owner', 'partially_approved', 'returned_to_accountant', 'approved']))

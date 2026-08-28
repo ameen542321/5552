@@ -51,7 +51,13 @@
         </form>
     @endforeach
 
-    <form method="POST" action="{{ route('accountant.inventory-counts.submit', $session) }}">
+    <div class="ui-alert ui-alert-warning">
+        عند الإرسال ستنتقل الكميات المحفوظة ولقطات المقارنة إلى صاحب المتجر، ولن تتمكن من تعديلها إلا إذا أعاد لك صاحب المتجر منتجًا لإعادة الجرد.
+    </div>
+    <form method="POST" action="{{ route('accountant.inventory-counts.submit', $session) }}"
+          data-ui-confirm="سيتم إرسال جميع نتائج الجرد المحفوظة إلى صاحب المتجر للمراجعة، وسيتوقف تعديلها حتى يعيد لك منتجًا. هل تريد المتابعة؟"
+          data-ui-confirm-title="إرسال نتائج الجرد للمالك"
+          data-ui-confirm-busy="جارٍ إرسال النتائج...">
         @csrf
         <button class="ui-btn ui-btn-primary w-full">إرسال النتائج للمالك</button>
     </form>

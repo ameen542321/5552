@@ -5,7 +5,7 @@
     <div class="flex items-center justify-between gap-3">
         <div class="flex items-center gap-2">
             <h1 class="ui-title text-2xl font-bold">اختيار منتجات الجرد</h1>
-            <x-ui.help title="اختيار منتجات الجرد" body="تظهر المنتجات التي لم تُجرد أولًا. احفظ اختيار الصفحة قبل الانتقال إلى صفحة أخرى، واختر خمسة منتجات على الأقل لإنشاء الجلسة." />
+            <x-ui.help title="اختيار منتجات الجرد" body="تظهر المنتجات التي لم تُجرد أولًا. احفظ اختيار الصفحة قبل الانتقال إلى صفحة أخرى. خلال الاختبار الحالي يسمح النظام بإنشاء الجلسة من منتج واحد مؤقتًا." />
         </div>
         <a class="ui-btn ui-btn-secondary" href="{{ route('user.stores.inventory-counts.index', $store) }}"><i class="fa-solid fa-arrow-right" aria-hidden="true"></i> رجوع</a>
     </div>
@@ -55,7 +55,7 @@
         <button class="ui-btn ui-btn-secondary">حفظ اختيارات هذه الصفحة</button>
         {{ $products->links() }}
     </form>
-    @if(count($selected) >= 5)
+    @if(count($selected) >= 1)
         <form method="POST" action="{{ route('user.stores.inventory-counts.store', $store) }}" class="ui-card p-4 space-y-4">
             @csrf
             @if($editingSession)<input type="hidden" name="inventory_session" value="{{ $editingSession->id }}">@endif

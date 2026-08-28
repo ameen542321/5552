@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\InventoryCountSession;
 use App\Models\InventoryCountSessionItem;
+use App\Models\InventoryLog;
 use App\Models\Product;
 use App\Models\Store;
 use App\Services\InventoryCountService;
@@ -63,7 +64,8 @@ class InventoryCountController extends Controller
         $this->ownerStore($store);
         $data = $request->validate(['inventory_session' => 'nullable|integer', 'accountant_id' => ['required', Rule::exists('accountants', 'id')->where('store_id', $store->id)], 'note' => 'nullable|string|max:1000']);
         $ids = Product::where('store_id', $store->id)->whereIn('id', session($this->selectionKey($store), []))->pluck('id');
-        if ($ids->count() < 5) throw ValidationException::withMessages(['products' => 'اختر خمسة منتجات على الأقل لإنشاء جلسة الجرد.']);
+        // تعطيل مؤقت لحد الخمسة لاختبار الدورة الواقعية بمنتج واحد؛ يعاد إلى 5 بعد انتهاء التجربة.
+        if ($ids->isEmpty()) throw ValidationException::withMessages(['products' => 'اختر منتجًا واحدًا على الأقل لإنشاء جلسة الجرد التجريبية.']);
         if (! ($data['inventory_session'] ?? null) && InventoryCountSession::where('store_id', $store->id)->whereIn('status', InventoryCountSession::OPEN_STATUSES)->count() >= 5) throw ValidationException::withMessages(['session' => 'لا يمكن فتح أكثر من خمس جلسات جرد في الوقت نفسه.']);
 
         $session = DB::transaction(function () use ($store, $data, $ids) {
@@ -83,7 +85,18 @@ class InventoryCountController extends Controller
     {
         $this->ownerStore($store); $this->ensureSessionStore($inventoryCount, $store);
         $inventoryCount->load(['items.product', 'accountant']);
-        return view('inventory-counts.owner.show', ['session' => $inventoryCount, 'store' => $store]);
+        $legacyAudits = InventoryLog::with('user')
+            ->where('store_id', $store->id)
+            ->whereIn('product_id', $inventoryCount->items->pluck('product_id'))
+            ->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)
+            ->whereNull('inventory_count_session_item_id')
+            ->latest('business_date')
+            ->latest('created_at')
+            ->get()
+            ->unique('product_id')
+            ->keyBy('product_id');
+
+        return view('inventory-counts.owner.show', ['session' => $inventoryCount, 'store' => $store, 'legacyAudits' => $legacyAudits]);
     }
 
     public function send(Store $store, InventoryCountSession $inventoryCount)
