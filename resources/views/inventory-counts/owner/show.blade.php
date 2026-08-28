@@ -19,6 +19,18 @@
             </div>
         </x-ui.card>
     @endif
+    @if(in_array($session->status, \App\Models\InventoryCountSession::OPEN_STATUSES, true) && $session->status !== 'draft')
+        <x-ui.card>
+            <form method="POST" action="{{ route('user.stores.inventory-counts.cancel', [$store, $session]) }}" class="flex flex-col gap-3 sm:flex-row sm:items-end" data-ui-confirm="سيتم إيقاف العمل على الجلسة ولن يستطيع المحاسب إرسال نتائج جديدة." data-ui-confirm-title="إلغاء جلسة الجرد">
+                @csrf
+                <div class="flex-1"><label class="ui-label" for="cancellation-reason">سبب الإلغاء</label><input id="cancellation-reason" class="ui-input" name="reason" required minlength="5" maxlength="1000" placeholder="مثال: اختيار منتجات غير صحيحة"></div>
+                <button class="ui-btn ui-btn-danger">إلغاء الجلسة</button>
+            </form>
+        </x-ui.card>
+    @elseif($session->status === 'cancelled')
+        <div class="ui-alert ui-alert-warning"><strong>الجلسة ملغاة.</strong> {{ $session->cancellation_reason }} <span class="ui-text-caption">{{ $session->cancelled_at?->format('Y-m-d H:i') }}</span></div>
+        <form method="POST" action="{{ route('user.stores.inventory-counts.destroy', [$store, $session]) }}" data-ui-confirm="سيتم حذف الجلسة الملغاة من القائمة مع إبقاء السجل التقني." data-ui-confirm-title="حذف الجلسة الملغاة">@csrf @method('DELETE')<button class="ui-btn ui-btn-danger">حذف الجلسة</button></form>
+    @endif
     @if($session->items->contains(fn ($item) => in_array($item->decision, ['approved', 'adjusted_approved'], true)))
         <div class="flex items-center gap-2">
             <x-ui.badge variant="success">تم تسجيل المنتجات المعتمدة</x-ui.badge>
@@ -35,6 +47,7 @@
     <div class="{{ $session->status === 'draft' ? 'grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3' : 'space-y-4' }}">
         @foreach($session->items as $item)
             @php($legacyAudit = $legacyAudits->get($item->product_id))
+            @php($legacyAuditMovement = $legacyAuditMovements->get($item->product_id))
             <x-ui.card>
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div class="flex items-start gap-3">
@@ -46,8 +59,9 @@
                     @if($item->accountant_quantity === null)
                         <div class="flex flex-col items-end gap-2">
                             <x-ui.badge :variant="$session->status === 'draft' ? 'success' : 'info'">{{ $session->status === 'draft' ? 'ضمن المسودة' : 'بانتظار المحاسب' }}</x-ui.badge>
-                            @if($legacyAudit)
-                                <span class="ui-text-caption">آخر جرد سابق: {{ optional($legacyAudit->business_date)->format('Y-m-d') ?: $legacyAudit->created_at?->format('Y-m-d') }} @if($legacyAudit->user)— بواسطة {{ $legacyAudit->user->name }}@endif</span>
+                            @if($legacyAudit || $legacyAuditMovement)
+                                @php($previousAudit = $legacyAudit ?: $legacyAuditMovement)
+                                <span class="ui-text-caption">آخر جرد سابق: {{ optional($previousAudit->business_date)->format('Y-m-d') ?: $previousAudit->created_at?->format('Y-m-d') }} — الكمية: {{ $legacyAudit ? $legacyAudit->quantity_snapshot : $legacyAuditMovement->current_balance }} @if($previousAudit->user)— بواسطة {{ $previousAudit->user->name }}@endif</span>
                             @endif
                         </div>
                     @elseif($item->decision === 'recounted')
@@ -71,7 +85,7 @@
                 @endif
                 @if(in_array($item->decision, ['approved', 'adjusted_approved'], true) && $item->product && ! $item->product->trashed())
                     <div class="mt-4 flex items-center gap-2">
-                        <a href="{{ route('user.stores.products.stock', [$store, $item->product]) }}" class="ui-btn ui-btn-secondary">إدارة مخزون المنتج</a>
+                        <a href="{{ route('user.stores.products.stock', ['store' => $store->id, 'product' => $item->product_id, 'return_to' => 'inventory-count', 'inventory_count' => $session->id]) }}" class="ui-btn ui-btn-secondary">إدارة مخزون المنتج</a>
                         <x-ui.help title="إدارة مخزون المنتج" body="يفتح سجل وحركات مخزون هذا المنتج. اعتماد الجرد لا يغير الرصيد تلقائيًا، لذلك تنفذ أي زيادة أو سحب كتسوية مستقلة من صفحة المخزون." />
                     </div>
                 @endif

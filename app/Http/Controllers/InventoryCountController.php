@@ -7,6 +7,7 @@ use App\Models\InventoryCountSessionItem;
 use App\Models\InventoryLog;
 use App\Models\Product;
 use App\Models\Store;
+use App\Models\StockMovement;
 use App\Services\InventoryCountService;
 use App\Services\NotificationService;
 use App\Support\ArabicPdf as PDF;
@@ -95,8 +96,18 @@ class InventoryCountController extends Controller
             ->get()
             ->unique('product_id')
             ->keyBy('product_id');
+        // بعض عمليات الجرد القديمة كانت تسجل كحركة مخزون فقط قبل إنشاء سجل الجرد الموحد.
+        $legacyAuditMovements = StockMovement::with('user')
+            ->where('store_id', $store->id)
+            ->whereIn('product_id', $inventoryCount->items->pluck('product_id'))
+            ->where('note', 'like', 'تأكيد جرد المنتج%')
+            ->latest('business_date')
+            ->latest('created_at')
+            ->get()
+            ->unique('product_id')
+            ->keyBy('product_id');
 
-        return view('inventory-counts.owner.show', ['session' => $inventoryCount, 'store' => $store, 'legacyAudits' => $legacyAudits]);
+        return view('inventory-counts.owner.show', compact('store', 'legacyAudits', 'legacyAuditMovements') + ['session' => $inventoryCount]);
     }
 
     public function send(Store $store, InventoryCountSession $inventoryCount)
@@ -133,8 +144,32 @@ class InventoryCountController extends Controller
 
     public function destroy(Store $store, InventoryCountSession $inventoryCount)
     {
-        $this->ownerStore($store); $this->ensureSessionStore($inventoryCount, $store); abort_unless($inventoryCount->status === 'draft', 422);
-        $inventoryCount->delete(); return redirect()->route('user.stores.inventory-counts.index', $store)->with('success', 'تم حذف مسودة الجرد.');
+        $this->ownerStore($store); $this->ensureSessionStore($inventoryCount, $store);
+        abort_unless(in_array($inventoryCount->status, ['draft', 'cancelled'], true), 422, 'يجب إلغاء الجلسة أولًا قبل حذفها.');
+        $inventoryCount->delete();
+
+        return redirect()->route('user.stores.inventory-counts.index', $store)->with('success', 'تم حذف جلسة الجرد من القائمة مع الاحتفاظ بسجلها التقني.');
+    }
+
+    public function cancel(Request $request, Store $store, InventoryCountSession $inventoryCount)
+    {
+        $this->ownerStore($store); $this->ensureSessionStore($inventoryCount, $store);
+        abort_unless(in_array($inventoryCount->status, InventoryCountSession::OPEN_STATUSES, true), 422, 'لا يمكن إلغاء جلسة مكتملة أو ملغاة.');
+        $data = $request->validate(['reason' => 'required|string|min:5|max:1000'], [
+            'reason.required' => 'اكتب سبب إلغاء جلسة الجرد.',
+            'reason.min' => 'سبب الإلغاء يجب ألا يقل عن خمسة أحرف.',
+        ]);
+        $inventoryCount->update([
+            'status' => 'cancelled',
+            'cancelled_at' => now(),
+            'cancellation_reason' => trim($data['reason']),
+        ]);
+
+        if ($inventoryCount->accountant_id) {
+            NotificationService::send(['sender_id' => auth('web')->id(), 'sender_type' => 'user', 'target_type' => 'accountants', 'target_ids' => [$inventoryCount->accountant_id], 'title' => 'إلغاء جلسة جرد', 'message' => 'ألغى المالك جلسة '.$inventoryCount->referenceCode().'.', 'template_key' => 'inventory_count_cancelled']);
+        }
+
+        return back()->with('success', 'تم إلغاء جلسة الجرد وإيقاف العمل عليها. يمكنك الآن حذفها من القائمة.');
     }
 
     public function pdf(Store $store, InventoryCountSession $inventoryCount)

@@ -8,7 +8,7 @@
 
     {{-- الهيدر --}}
     <div class="flex items-center justify-between mb-8 gap-4">
-        <a href="{{ request('return_to') === 'audit' ? route('user.stores.products.audit', $store->id) : route('user.stores.products.index', $store->id) }}"
+        <a href="{{ request('return_to') === 'audit' ? route('user.stores.products.audit', $store->id) : (request('return_to') === 'inventory-count' && request()->filled('inventory_count') ? route('user.stores.inventory-counts.show', [$store->id, request('inventory_count')]) : route('user.stores.products.index', $store->id)) }}"
            class="inline-flex items-center gap-2 px-4 py-2 rounded-lg ui-surface-muted-bg border ui-border ui-text-muted ui-hover-info transition shadow-sm">
             <i class="fa-solid fa-arrow-right text-sm"></i>
             <span class="text-sm font-medium">رجوع</span>

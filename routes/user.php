@@ -111,6 +111,7 @@ Route::middleware(['owner.unified'])->prefix('user')->name('user.')->group(funct
                 Route::post('/', [InventoryCountController::class, 'store'])->name('store');
                 Route::get('/{inventoryCount}', [InventoryCountController::class, 'show'])->name('show');
                 Route::post('/{inventoryCount}/send', [InventoryCountController::class, 'send'])->name('send');
+                Route::post('/{inventoryCount}/cancel', [InventoryCountController::class, 'cancel'])->name('cancel');
                 Route::post('/{inventoryCount}/items/{item}/decision', [InventoryCountController::class, 'decide'])->name('items.decision');
                 Route::post('/{inventoryCount}/bulk-approve', [InventoryCountController::class, 'bulkApprove'])->name('bulk-approve');
                 Route::get('/{inventoryCount}/pdf', [InventoryCountController::class, 'pdf'])->name('pdf');

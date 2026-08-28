@@ -114,7 +114,9 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('إعادة الحد الأدنى إلى خمسة منتجات', $index);
         $this->assertStringContainsString('count($selected) >= 1', $create);
         $this->assertStringContainsString("whereNull('inventory_count_session_item_id')", $controller);
+        $this->assertStringContainsString("where('note', 'like', 'تأكيد جرد المنتج%')", $controller);
         $this->assertStringContainsString('آخر جرد سابق:', $show);
+        $this->assertStringContainsString('الكمية:', $show);
     }
 
     public function test_accountant_submit_explains_and_confirms_what_will_happen(): void
@@ -156,5 +158,20 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('تم تسجيل المنتجات المعتمدة', $view);
         $this->assertStringNotContainsString('<strong>ما بعد الاعتماد:</strong>', $view);
         $this->assertStringNotContainsString('<strong>خطوة إلزامية:</strong>', $accountantView);
+    }
+
+    public function test_owner_can_cancel_then_delete_a_count_session_and_return_from_stock(): void
+    {
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $routes = file_get_contents(__DIR__.'/../../routes/user.php');
+        $ownerView = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+        $stockView = file_get_contents(__DIR__.'/../../resources/views/user/stores/products/stock/index.blade.php');
+
+        $this->assertStringContainsString('public function cancel(', $controller);
+        $this->assertStringContainsString("['draft', 'cancelled']", $controller);
+        $this->assertStringContainsString("name('cancel')", $routes);
+        $this->assertStringContainsString('إلغاء الجلسة', $ownerView);
+        $this->assertStringContainsString("'return_to' => 'inventory-count'", $ownerView);
+        $this->assertStringContainsString("request('return_to') === 'inventory-count'", $stockView);
     }
 }
