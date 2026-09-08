@@ -157,7 +157,7 @@
         </div>
     </div>
 
-    {{-- بطاقة التحصيلات: تعرض تحصيل الأجل وتحصيل نظام المديونية كتحصيلات منفصلة نفذها المحاسب فقط. --}}
+    {{-- بطاقة التحصيلات: تعرض دخل التحصيل المسجل في يوم العمل، سواء نفذه المحاسب أو المالك. --}}
     @if(($accountantFinanceMovements['collections_total'] ?? $cashFromCollections) > 0)
     <div class="ui-card p-5 ui-hover-success-border transition-all">
         <div class="flex items-center justify-between">
