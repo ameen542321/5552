@@ -6,6 +6,7 @@ use App\Models\Accountant;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\Employees\EmployeePayrollService;
+use App\Services\ShiftLifecycleService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -21,6 +22,7 @@ final class EmployeeOperationPageViewModel
         $operationSummary = $this->operationSummary($person, $operationDetails, $periodStart, $periodEnd);
         $person?->loadMissing(['accountant', 'activeAccountant']);
         $personLabel = $person instanceof Employee && $person->activeAccountant ? 'المحاسب' : 'الموظف';
+        $openCreditCollectionDates = app(ShiftLifecycleService::class)->openBusinessDates((int) $person->store_id);
 
         return [
             'employee' => $person,
@@ -32,6 +34,7 @@ final class EmployeeOperationPageViewModel
             'actionCards' => $this->actionCards($person, $selectedMonth),
             'recentLogs' => $this->paginatedLogs($operationDetails, $periodStart),
             'logActionMap' => $this->logActionMap(),
+            'openCreditCollectionDates' => $openCreditCollectionDates,
         ];
     }
 

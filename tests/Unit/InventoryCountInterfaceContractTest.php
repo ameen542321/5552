@@ -53,10 +53,14 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('ownerStoreCollection', $controller);
         $this->assertStringContainsString("'collection_date' => ['required', 'date']", $controller);
         $this->assertStringContainsString("'date' => \$validated['collection_date']", $controller);
+        $this->assertStringContainsString('openBusinessDates($store)', $controller);
+        $this->assertStringContainsString("'require_open_business_date' => true", $controller);
         $this->assertStringContainsString("(bool) (\$options['use_accounting_date'] ?? false)", $service);
+        $this->assertStringContainsString("\$options['require_open_business_date']", $service);
         $this->assertStringContainsString("name('credit-sales.collect')", $routes);
         $this->assertStringContainsString('name="collection_date"', $modal);
-        $this->assertStringContainsString('يمكن لصاحب المتجر تحصيل المبلغ المتبقي حتى إذا كانت عملية البيع من شهر سابق', $modal);
+        $this->assertStringContainsString('openCreditCollectionDates', $modal);
+        $this->assertStringContainsString('يمكن تحصيل عملية من شهر سابق', $modal);
     }
 
     public function test_inventory_count_operational_guidance_is_exposed_through_help_components(): void

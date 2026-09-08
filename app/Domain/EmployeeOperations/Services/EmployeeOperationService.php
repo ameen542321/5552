@@ -396,6 +396,10 @@ class EmployeeOperationService
                 (bool) ($options['use_accounting_date'] ?? false)
             );
             $operationDate = $operationContext['operation_date'];
+            if ((bool) ($options['require_open_business_date'] ?? false)
+                && ! in_array($operationDate->toDateString(), app(ShiftLifecycleService::class)->openBusinessDates($person->store_id), true)) {
+                throw new EmployeeOperationException('لا يمكن تسجيل التحصيل في هذا اليوم لأنه مقفل أو غير متاح.');
+            }
             $remainingAmount = max(0, (float) $lockedCreditSale->remaining_amount - $amount);
             $isFullyCollected = $remainingAmount == 0;
             $requestedPaymentMethod = $options['payment_method'] ?? 'cash';

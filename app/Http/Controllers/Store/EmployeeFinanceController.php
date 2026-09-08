@@ -176,6 +176,12 @@ public function storeCollection(Request $request, $saleId)
             'cash_amount' => ['nullable', 'numeric', 'min:0'],
             'card_amount' => ['nullable', 'numeric', 'min:0'],
         ]);
+        $openCollectionDates = app(ShiftLifecycleService::class)->openBusinessDates($store);
+        if (! in_array($validated['collection_date'], $openCollectionDates, true)) {
+            return back()->withErrors([
+                'collection_date' => 'لا يمكن تسجيل التحصيل في هذا اليوم لأنه مقفل أو غير متاح. اختر يومًا مفتوحًا.',
+            ])->withInput();
+        }
         $amount = (float) $validated['amount'];
         $paymentMethod = $validated['payment_method'];
         $cashAmount = $paymentMethod === 'card' ? 0.0 : ($paymentMethod === 'mixed' ? (float) ($validated['cash_amount'] ?? 0) : $amount);
@@ -193,6 +199,7 @@ public function storeCollection(Request $request, $saleId)
                 [
                     // التاريخ الذي اختاره المالك هو تاريخ تسجيل التحصيل، حتى للآجل القديم.
                     'date' => $validated['collection_date'],
+                    'require_open_business_date' => true,
                     'payment_method' => $paymentMethod,
                     'cash_amount' => $cashAmount,
                     'card_amount' => $cardAmount,
