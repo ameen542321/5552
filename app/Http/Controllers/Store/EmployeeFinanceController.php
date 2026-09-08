@@ -171,6 +171,7 @@ public function storeCollection(Request $request, $saleId)
 
         $validated = $request->validate([
             'amount' => ['required', 'numeric', 'gt:0'],
+            'collection_date' => ['required', 'date'],
             'payment_method' => ['required', 'in:cash,card,mixed'],
             'cash_amount' => ['nullable', 'numeric', 'min:0'],
             'card_amount' => ['nullable', 'numeric', 'min:0'],
@@ -190,7 +191,8 @@ public function storeCollection(Request $request, $saleId)
                 $amount,
                 app(EmployeeOperationService::class)->actorFromCurrentAuth(),
                 [
-                    'use_accounting_date' => true,
+                    // التاريخ الذي اختاره المالك هو تاريخ تسجيل التحصيل، حتى للآجل القديم.
+                    'date' => $validated['collection_date'],
                     'payment_method' => $paymentMethod,
                     'cash_amount' => $cashAmount,
                     'card_amount' => $cardAmount,
@@ -201,7 +203,7 @@ public function storeCollection(Request $request, $saleId)
             return back()->with('error', $exception->getMessage());
         }
 
-        return back()->with('success', 'تم تحصيل مبلغ الآجل وتسجيله في يوم العمل الجاري.');
+        return back()->with('success', 'تم تحصيل مبلغ الآجل وتسجيله بتاريخ '.$validated['collection_date'].'.');
     }
 
 

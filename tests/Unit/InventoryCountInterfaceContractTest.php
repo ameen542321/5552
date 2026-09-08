@@ -51,9 +51,11 @@ class InventoryCountInterfaceContractTest extends TestCase
         $modal = file_get_contents(__DIR__.'/../../resources/views/components/employee/operation-details-modal.blade.php');
 
         $this->assertStringContainsString('ownerStoreCollection', $controller);
-        $this->assertStringContainsString("'use_accounting_date' => true", $controller);
+        $this->assertStringContainsString("'collection_date' => ['required', 'date']", $controller);
+        $this->assertStringContainsString("'date' => \$validated['collection_date']", $controller);
         $this->assertStringContainsString("(bool) (\$options['use_accounting_date'] ?? false)", $service);
         $this->assertStringContainsString("name('credit-sales.collect')", $routes);
+        $this->assertStringContainsString('name="collection_date"', $modal);
         $this->assertStringContainsString('يمكن لصاحب المتجر تحصيل المبلغ المتبقي حتى إذا كانت عملية البيع من شهر سابق', $modal);
     }
 

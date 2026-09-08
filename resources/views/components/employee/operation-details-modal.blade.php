@@ -156,10 +156,11 @@
                                     @csrf
                                     <div class="flex items-center gap-2">
                                         <h3 class="ui-title font-bold">تحصيل الآجل</h3>
-                                        <x-ui.help title="تحصيل الآجل" body="يمكن لصاحب المتجر تحصيل المبلغ المتبقي حتى إذا كانت عملية البيع من شهر سابق. يسجل التحصيل في يوم العمل الجاري." />
+                                        <x-ui.help title="تحصيل الآجل" body="يمكن لصاحب المتجر تحصيل المبلغ المتبقي حتى إذا كانت عملية البيع من شهر سابق. التاريخ الذي تختاره هو تاريخ تسجيل التحصيل في الحسابات والتقارير." />
                                     </div>
                                     <div class="grid grid-cols-1 gap-3">
                                         <label class="block"><span class="ui-label">المبلغ المحصل</span><input class="ui-input" type="number" name="amount" min="0.01" max="{{ (float) $row->remaining_amount }}" step="0.01" value="{{ (float) $row->remaining_amount }}" required></label>
+                                        <label class="block"><span class="ui-label">تاريخ التحصيل</span><input class="ui-input" type="date" name="collection_date" value="{{ old('collection_date', now()->toDateString()) }}" required></label>
                                         <label class="block"><span class="ui-label">طريقة التحصيل</span><select class="ui-input" name="payment_method" required><option value="cash">كاش</option><option value="card">شبكة</option><option value="mixed">ميكس</option></select></label>
                                         <label class="block"><span class="ui-label">مبلغ الكاش عند اختيار ميكس</span><input class="ui-input" type="number" name="cash_amount" min="0" step="0.01" placeholder="0.00"></label>
                                         <label class="block"><span class="ui-label">مبلغ الشبكة عند اختيار ميكس</span><input class="ui-input" type="number" name="card_amount" min="0" step="0.01" placeholder="0.00"></label>
