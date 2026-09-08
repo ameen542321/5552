@@ -143,6 +143,7 @@ Route::middleware(['owner.unified'])->prefix('user')->name('user.')->group(funct
             Route::delete('/{store}/daily-sales/{sale}', [DailySalesController::class, 'destroy'])->name('daily.destroy');
             Route::put('/{store}/daily-sales/financial/{type}/{id}', [DailySalesController::class, 'updateFinancialOperation'])->name('daily.financial.update');
             Route::delete('/{store}/daily-sales/financial/{type}/{id}', [DailySalesController::class, 'destroyFinancialOperation'])->name('daily.financial.destroy');
+            Route::post('/{store}/credit-sales/{creditSale}/collect', [EmployeeFinanceController::class, 'ownerStoreCollection'])->name('credit-sales.collect');
 
             // ========== ✅ فواتير المتجر (للمالك) ==========
             Route::prefix('/{store}/invoices')->name('invoices.')->group(function () {

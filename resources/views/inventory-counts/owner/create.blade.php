@@ -15,8 +15,17 @@
         <input class="ui-input flex-1" name="q" value="{{ $search }}" placeholder="ابحث باسم المنتج أو وصفه">
         <button class="ui-btn ui-btn-secondary">بحث</button>
     </form>
+    @if($recentlyAuditedMatches->isNotEmpty())
+        <div class="ui-alert ui-alert-info space-y-1">
+            <p class="font-bold">نتائج جُردت خلال آخر 30 يومًا</p>
+            @foreach($recentlyAuditedMatches as $recentProduct)
+                <p>{{ $recentProduct->name }}: جُرد بتاريخ {{ $recentProduct->last_audit_date }}، ويمكن جرده مجددًا بعد {{ $recentProduct->inventory_count_remaining_days }} يوم ({{ $recentProduct->inventory_count_available_at }}).</p>
+            @endforeach
+        </div>
+    @endif
     <form method="POST" action="{{ route('user.stores.inventory-counts.selection', $store) }}" class="ui-card p-4 space-y-4">
         @csrf
+        <input type="hidden" name="q" value="{{ $search }}">
         <div class="flex items-center gap-2">
             <x-ui.badge variant="info">المحدد حاليًا: {{ count($selected) }} منتجات</x-ui.badge>
             <x-ui.help title="حفظ التحديد" body="يحفظ النظام المنتجات المحددة عند الانتقال بين صفحات النتائج أو استخدام البحث بعد الضغط على حفظ اختيارات هذه الصفحة." />
@@ -52,7 +61,10 @@
                 </label>
             @empty<div class="md:col-span-2 xl:col-span-3 ui-empty-state">لا توجد نتائج.</div>@endforelse
         </div>
-        <button class="ui-btn ui-btn-secondary">حفظ اختيارات هذه الصفحة</button>
+        <div class="flex flex-wrap gap-2">
+            <button class="ui-btn ui-btn-secondary" name="selection_action" value="page">حفظ اختيارات هذه الصفحة</button>
+            <button class="ui-btn ui-btn-primary" name="selection_action" value="all">تحديد كل المنتجات المتاحة</button>
+        </div>
         {{ $products->links() }}
     </form>
     @if(count($selected) >= 1)

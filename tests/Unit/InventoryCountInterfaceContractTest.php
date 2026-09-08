@@ -28,6 +28,33 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('الكمية:', $selector);
         $this->assertStringContainsString('البيع:', $selector);
         $this->assertStringContainsString('التكلفة:', $selector);
+        $this->assertStringContainsString('تحديد كل المنتجات المتاحة', $selector);
+        $this->assertStringContainsString('نتائج جُردت خلال آخر 30 يومًا', $selector);
+        $this->assertStringContainsString('inventory_count_remaining_days', $selector);
+    }
+
+    public function test_recently_audited_products_are_excluded_from_new_count_sessions(): void
+    {
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+
+        $this->assertStringContainsString('eligibleProductsQuery', $controller);
+        $this->assertStringContainsString("subDays(30)", $controller);
+        $this->assertStringContainsString("whereDoesntHave('inventoryLogs'", $controller);
+        $this->assertStringContainsString("Rule::in(['page', 'all'])", $controller);
+    }
+
+    public function test_owner_credit_collection_is_available_for_old_operations(): void
+    {
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/Store/EmployeeFinanceController.php');
+        $service = file_get_contents(__DIR__.'/../../app/Domain/EmployeeOperations/Services/EmployeeOperationService.php');
+        $routes = file_get_contents(__DIR__.'/../../routes/user.php');
+        $modal = file_get_contents(__DIR__.'/../../resources/views/components/employee/operation-details-modal.blade.php');
+
+        $this->assertStringContainsString('ownerStoreCollection', $controller);
+        $this->assertStringContainsString("'use_accounting_date' => true", $controller);
+        $this->assertStringContainsString("(bool) (\$options['use_accounting_date'] ?? false)", $service);
+        $this->assertStringContainsString("name('credit-sales.collect')", $routes);
+        $this->assertStringContainsString('يمكن لصاحب المتجر تحصيل المبلغ المتبقي حتى إذا كانت عملية البيع من شهر سابق', $modal);
     }
 
     public function test_inventory_count_operational_guidance_is_exposed_through_help_components(): void

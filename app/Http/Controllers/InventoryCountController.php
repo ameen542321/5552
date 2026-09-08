@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
+use Carbon\Carbon;
 
 class InventoryCountController extends Controller
 {
@@ -40,19 +41,74 @@ class InventoryCountController extends Controller
         }
         $selected = session($this->selectionKey($store), []);
         $search = trim((string) $request->query('q'));
-        $products = Product::query()->where('store_id', $store->id)->where(fn ($q) => $q->where('usage_type', '!=', Product::USAGE_TYPE_OWNER_PURCHASE)->orWhereNull('usage_type'))
+        $auditCutoff = now()->startOfDay()->subDays(30);
+        $baseProducts = Product::query()->where('store_id', $store->id)->where(fn ($q) => $q->where('usage_type', '!=', Product::USAGE_TYPE_OWNER_PURCHASE)->orWhereNull('usage_type'));
+        $eligibleProducts = (clone $baseProducts)->whereDoesntHave('inventoryLogs', function ($query) use ($auditCutoff) {
+            $query->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)
+                ->whereRaw('COALESCE(business_date, DATE(created_at)) > ?', [$auditCutoff->toDateString()]);
+        });
+        $products = $eligibleProducts
             ->when($search, fn ($q) => $q->where(fn ($x) => $x->where('name', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%")))
             ->with('category')
             ->withMax(['inventoryLogs as last_audit_date' => fn ($q) => $q->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)], 'business_date')
             ->orderByRaw('last_audit_date IS NOT NULL')->orderBy('last_audit_date')->orderBy('name')->paginate(20)->withQueryString();
+        $recentlyAuditedMatches = collect();
+        if ($search !== '') {
+            $recentlyAuditedMatches = (clone $baseProducts)
+                ->where(fn ($query) => $query->where('name', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%"))
+                ->whereHas('inventoryLogs', function ($query) use ($auditCutoff) {
+                    $query->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)
+                        ->whereRaw('COALESCE(business_date, DATE(created_at)) > ?', [$auditCutoff->toDateString()]);
+                })
+                ->with(['inventoryLogs' => function ($query) use ($auditCutoff) {
+                    $query->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)
+                        ->whereRaw('COALESCE(business_date, DATE(created_at)) > ?', [$auditCutoff->toDateString()])
+                        ->orderByDesc('business_date')
+                        ->orderByDesc('created_at');
+                }])
+                ->withMax(['inventoryLogs as last_audit_date' => fn ($query) => $query->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)], 'business_date')
+                ->orderByDesc('last_audit_date')
+                ->limit(10)
+                ->get()
+                ->map(function (Product $product) {
+                    $lastAudit = $product->inventoryLogs
+                        ->sortByDesc(fn (InventoryLog $log) => ($log->business_date ?? $log->created_at)?->timestamp ?? 0)
+                        ->first();
+                    $lastAuditDate = Carbon::parse($lastAudit?->business_date ?? $lastAudit?->created_at)->startOfDay();
+                    $product->setAttribute('last_audit_date', $lastAuditDate->toDateString());
+                    $availableAt = $lastAuditDate->copy()->addDays(30);
+                    $product->setAttribute('inventory_count_available_at', $availableAt->toDateString());
+                    $product->setAttribute('inventory_count_remaining_days', max(1, now()->startOfDay()->diffInDays($availableAt, false)));
+
+                    return $product;
+                });
+        }
         $accountants = $store->accountants()->where('status', 'active')->orderBy('name')->get();
-        return view('inventory-counts.owner.create', compact('store', 'products', 'selected', 'accountants', 'search', 'editingSession'));
+        return view('inventory-counts.owner.create', compact('store', 'products', 'selected', 'accountants', 'search', 'editingSession', 'recentlyAuditedMatches'));
     }
 
     public function updateSelection(Request $request, Store $store)
     {
         $this->ownerStore($store);
-        $data = $request->validate(['page_product_ids' => 'array', 'page_product_ids.*' => 'integer', 'selected_ids' => 'array', 'selected_ids.*' => 'integer']);
+        $data = $request->validate([
+            'selection_action' => ['nullable', Rule::in(['page', 'all'])],
+            'q' => 'nullable|string|max:255',
+            'page_product_ids' => 'array',
+            'page_product_ids.*' => 'integer',
+            'selected_ids' => 'array',
+            'selected_ids.*' => 'integer',
+        ]);
+        if (($data['selection_action'] ?? 'page') === 'all') {
+            $search = trim((string) ($data['q'] ?? ''));
+            $ids = $this->eligibleProductsQuery($store)
+                ->when($search, fn ($query) => $query->where(fn ($nested) => $nested->where('name', 'like', "%{$search}%")->orWhere('description', 'like', "%{$search}%")))
+                ->pluck('id')
+                ->map(fn ($id) => (int) $id)
+                ->all();
+            session([$this->selectionKey($store) => $ids]);
+
+            return back()->with('success', 'تم تحديد جميع المنتجات المتاحة للجرد.');
+        }
         $existing = collect(session($this->selectionKey($store), []));
         $pageIds = collect($data['page_product_ids'] ?? [])->map(fn ($id) => (int) $id);
         $chosen = collect($data['selected_ids'] ?? [])->map(fn ($id) => (int) $id);
@@ -65,7 +121,9 @@ class InventoryCountController extends Controller
     {
         $this->ownerStore($store);
         $data = $request->validate(['inventory_session' => 'nullable|integer', 'accountant_id' => ['required', Rule::exists('accountants', 'id')->where('store_id', $store->id)], 'note' => 'nullable|string|max:1000']);
-        $ids = Product::where('store_id', $store->id)->whereIn('id', session($this->selectionKey($store), []))->pluck('id');
+        $ids = $this->eligibleProductsQuery($store)
+            ->whereIn('id', session($this->selectionKey($store), []))
+            ->pluck('id');
         // تعطيل مؤقت لحد الخمسة لاختبار الدورة الواقعية بمنتج واحد؛ يعاد إلى 5 بعد انتهاء التجربة.
         if ($ids->isEmpty()) throw ValidationException::withMessages(['products' => 'اختر منتجًا واحدًا على الأقل لإنشاء جلسة الجرد التجريبية.']);
         if (! ($data['inventory_session'] ?? null) && InventoryCountSession::where('store_id', $store->id)->whereIn('status', InventoryCountSession::OPEN_STATUSES)->count() >= 5) throw ValidationException::withMessages(['session' => 'لا يمكن فتح أكثر من خمس جلسات جرد في الوقت نفسه.']);
@@ -187,6 +245,17 @@ class InventoryCountController extends Controller
     }
 
     private function selectionKey(Store $store): string { return 'inventory_count_selection_'.$store->id; }
+    private function eligibleProductsQuery(Store $store)
+    {
+        $auditCutoff = now()->startOfDay()->subDays(30)->toDateString();
+
+        return Product::query()
+            ->where('store_id', $store->id)
+            ->where(fn ($query) => $query->where('usage_type', '!=', Product::USAGE_TYPE_OWNER_PURCHASE)->orWhereNull('usage_type'))
+            ->whereDoesntHave('inventoryLogs', fn ($query) => $query
+                ->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)
+                ->whereRaw('COALESCE(business_date, DATE(created_at)) > ?', [$auditCutoff]));
+    }
     private function ensureSessionStore(InventoryCountSession $session, Store $store): void { abort_unless($session->store_id === $store->id, 404); }
     private function defaultUnit(Product $product): string { return $product->product_type === 'fractional' ? 'roll' : ($product->is_splittable ? 'kit' : 'piece'); }
 }

@@ -392,7 +392,8 @@ class EmployeeOperationService
             $operationContext = $this->resolveOperationContext(
                 $person->store_id,
                 $options['date'] ?? now()->toDateString(),
-                (bool) ($options['use_shift_gap_date'] ?? false)
+                (bool) ($options['use_shift_gap_date'] ?? false),
+                (bool) ($options['use_accounting_date'] ?? false)
             );
             $operationDate = $operationContext['operation_date'];
             $remainingAmount = max(0, (float) $lockedCreditSale->remaining_amount - $amount);

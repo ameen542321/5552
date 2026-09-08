@@ -164,6 +164,46 @@ public function storeCollection(Request $request, $saleId)
     return back()->with('success', 'تم تحصيل البيع الآجل بنجاح');
 }
 
+    public function ownerStoreCollection(Request $request, \App\Models\Store $store, CreditSale $creditSale)
+    {
+        abort_unless((int) $store->user_id === (int) auth('web')->id(), 403);
+        abort_unless((int) $creditSale->store_id === (int) $store->id, 404);
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'payment_method' => ['required', 'in:cash,card,mixed'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
+            'card_amount' => ['nullable', 'numeric', 'min:0'],
+        ]);
+        $amount = (float) $validated['amount'];
+        $paymentMethod = $validated['payment_method'];
+        $cashAmount = $paymentMethod === 'card' ? 0.0 : ($paymentMethod === 'mixed' ? (float) ($validated['cash_amount'] ?? 0) : $amount);
+        $cardAmount = $paymentMethod === 'cash' ? 0.0 : ($paymentMethod === 'mixed' ? (float) ($validated['card_amount'] ?? 0) : $amount);
+
+        if ($paymentMethod === 'mixed' && abs(($cashAmount + $cardAmount) - $amount) > 0.01) {
+            return back()->withErrors(['amount' => 'يجب أن يساوي مجموع الكاش والشبكة مبلغ التحصيل.']);
+        }
+
+        try {
+            app(EmployeeOperationService::class)->collectCreditSale(
+                $creditSale,
+                $amount,
+                app(EmployeeOperationService::class)->actorFromCurrentAuth(),
+                [
+                    'use_accounting_date' => true,
+                    'payment_method' => $paymentMethod,
+                    'cash_amount' => $cashAmount,
+                    'card_amount' => $cardAmount,
+                    'full' => abs($amount - (float) $creditSale->remaining_amount) <= 0.01,
+                ]
+            );
+        } catch (EmployeeOperationException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return back()->with('success', 'تم تحصيل مبلغ الآجل وتسجيله في يوم العمل الجاري.');
+    }
+
 
 
 

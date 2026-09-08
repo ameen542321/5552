@@ -151,6 +151,23 @@
                                 @endif
                             </div>
 
+                            @if((float) ($row->remaining_amount ?? 0) > 0 && !empty($row->store_id))
+                                <form method="POST" action="{{ route('user.stores.credit-sales.collect', [$row->store_id, $row->id]) }}" class="ui-card p-4 space-y-3">
+                                    @csrf
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="ui-title font-bold">تحصيل الآجل</h3>
+                                        <x-ui.help title="تحصيل الآجل" body="يمكن لصاحب المتجر تحصيل المبلغ المتبقي حتى إذا كانت عملية البيع من شهر سابق. يسجل التحصيل في يوم العمل الجاري." />
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-3">
+                                        <label class="block"><span class="ui-label">المبلغ المحصل</span><input class="ui-input" type="number" name="amount" min="0.01" max="{{ (float) $row->remaining_amount }}" step="0.01" value="{{ (float) $row->remaining_amount }}" required></label>
+                                        <label class="block"><span class="ui-label">طريقة التحصيل</span><select class="ui-input" name="payment_method" required><option value="cash">كاش</option><option value="card">شبكة</option><option value="mixed">ميكس</option></select></label>
+                                        <label class="block"><span class="ui-label">مبلغ الكاش عند اختيار ميكس</span><input class="ui-input" type="number" name="cash_amount" min="0" step="0.01" placeholder="0.00"></label>
+                                        <label class="block"><span class="ui-label">مبلغ الشبكة عند اختيار ميكس</span><input class="ui-input" type="number" name="card_amount" min="0" step="0.01" placeholder="0.00"></label>
+                                    </div>
+                                    <button class="ui-btn ui-btn-success" type="submit">تسجيل التحصيل</button>
+                                </form>
+                            @endif
+
                             @if($linkedSaleId && !empty($row->store_id))
                                 <div class="flex flex-wrap gap-2 justify-end">
                                     {{-- إصلاح مطبق: تحذير الانتقال لتعديل عملية الشفت المغلق يمر عبر عقد التنقل المركزي. --}}
@@ -163,7 +180,7 @@
                                         تعديل العملية
                                     </a>
                                     @if($isOutsideCurrentMonth)
-                                        <p class="w-full ui-text-caption ui-status-warning text-left md:text-right">هذه العملية من شهر سابق؛ التعديل سيفتح العملية لتغيير الموظف فقط، أما الحذف فيبقى ظاهرًا مع تنبيه حذف الأجل المرتبط.</p>
+                                        <p class="w-full ui-text-caption ui-status-warning text-left md:text-right">هذه العملية من شهر سابق؛ يمكن تحصيلها الآن، أما تعديل العملية فيقتصر على تغيير الموظف.</p>
                                     @endif
                                     <form method="POST"
                                           action="{{ route('user.stores.daily.destroy', [$row->store_id, $linkedSaleId, 'return_to' => request()->fullUrl()]) }}"
@@ -243,7 +260,7 @@
                                                         تعديل
                                                     </a>
                                                     @if($isOutsideCurrentMonth)
-                                                        <span class="w-full ui-text-caption ui-status-warning">عملية من شهر سابق: التعديل للموظف فقط، والحذف ظاهر مع تنبيه حذف الأجل المرتبط.</span>
+                                                        <span class="w-full ui-text-caption ui-status-warning">عملية من شهر سابق: التحصيل متاح، والتعديل يقتصر على تغيير الموظف.</span>
                                                     @endif
                                                     <form method="POST"
                                                           action="{{ route('user.stores.daily.destroy', [$row->store_id, $linkedSaleId, 'return_to' => request()->fullUrl()]) }}"
