@@ -165,6 +165,18 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('لم يتم إرسال النتائج:', $view);
     }
 
+    public function test_credit_collection_preview_uses_a_stable_sale_identifier(): void
+    {
+        $collectionScript = file_get_contents(__DIR__.'/../../resources/js/features/accountant/credit-collection.js');
+        $sensitiveActions = file_get_contents(__DIR__.'/../../resources/js/features/sensitive-interface-actions.js');
+
+        $this->assertStringContainsString('const salesById =', $collectionScript);
+        $this->assertStringContainsString('data-sale-id="${sale.id}"', $collectionScript);
+        $this->assertStringNotContainsString('data-sale="${escapeHtml(JSON.stringify(sale))}"', $collectionScript);
+        $this->assertStringContainsString("window.openPreviewModal?.(element.dataset.saleId)", $sensitiveActions);
+        $this->assertStringContainsString("showCollectionToast('error', 'تعذر فتح نافذة المعاينة.')", $collectionScript);
+    }
+
     public function test_draft_review_pdf_fonts_and_dashboard_inventory_alert_follow_shared_interfaces(): void
     {
         $draft = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
