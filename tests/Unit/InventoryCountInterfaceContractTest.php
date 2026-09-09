@@ -148,8 +148,10 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString('count($selected) >= 1', $create);
         $this->assertStringContainsString("whereNull('inventory_count_session_item_id')", $controller);
         $this->assertStringContainsString("where('note', 'like', 'تأكيد جرد المنتج%')", $controller);
-        $this->assertStringContainsString('آخر جرد سابق:', $show);
+        $this->assertStringContainsString('آخر جرد معتمد:', $show);
         $this->assertStringContainsString('الكمية:', $show);
+        $stock = file_get_contents(__DIR__.'/../../resources/views/user/stores/products/stock/index.blade.php');
+        $this->assertStringNotContainsString('سجل جرد سابق قبل تشغيل نظام الجلسات المستقل', $stock);
     }
 
     public function test_accountant_submit_explains_and_confirms_what_will_happen(): void

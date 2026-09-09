@@ -3014,6 +3014,21 @@ html.ui-font-loading body > :not(.ui-page-loader) {
         animation: ui-loader-progress 1.05s ease-in-out infinite;
     }
 
+    .ui-unit-choice {
+        border: 1px solid var(--ui-border);
+        background: var(--ui-surface-muted);
+        color: var(--ui-text);
+    }
+
+    .ui-unit-choice:hover {
+        border-color: var(--ui-text-muted);
+    }
+
+    .ui-unit-choice.is-selected {
+        border-color: var(--ui-text);
+        box-shadow: inset 0 0 0 1px var(--ui-text);
+    }
+
     @keyframes ui-loader-brand-pulse {
         50% { transform: scale(.86); opacity: .72; }
     }

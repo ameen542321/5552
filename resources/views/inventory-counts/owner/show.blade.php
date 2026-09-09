@@ -62,7 +62,7 @@
                             <x-ui.badge :variant="$session->status === 'draft' ? 'success' : 'info'">{{ $session->status === 'draft' ? 'ضمن المسودة' : 'بانتظار المحاسب' }}</x-ui.badge>
                             @if($legacyAudit || $legacyAuditMovement)
                                 @php($previousAudit = $legacyAudit ?: $legacyAuditMovement)
-                                <span class="ui-text-caption">آخر جرد سابق: {{ optional($previousAudit->business_date)->format('Y-m-d') ?: $previousAudit->created_at?->format('Y-m-d') }} — الكمية: {{ $legacyAudit ? $legacyAudit->quantity_snapshot : $legacyAuditMovement->current_balance }} @if($previousAudit->user)— بواسطة {{ $previousAudit->user->name }}@endif</span>
+                                <span class="ui-text-caption">آخر جرد معتمد: {{ optional($previousAudit->business_date)->format('Y-m-d') ?: $previousAudit->created_at?->format('Y-m-d') }} — الكمية: {{ $legacyAudit ? $legacyAudit->quantity_snapshot : $legacyAuditMovement->current_balance }} @if($previousAudit->user)— بواسطة {{ $previousAudit->user->name }}@endif</span>
                             @endif
                         </div>
                     @elseif($item->decision === 'recounted')

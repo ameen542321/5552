@@ -42,6 +42,7 @@ if (root) {
                         productType: p.product_type || 'normal',
                         isSplittable: !!p.is_splittable,
                         itemsPerUnit: parseInt(p.items_per_unit) || 1,
+                        defaultSaleUnit: p.quick_sale_default_unit === 'piece' ? 'piece' : 'unit',
                         rollLength: parseFloat(p.roll_length) || 0,
                         wastePercentage: parseFloat(p.waste_percentage) || 0,
                         stock_label: stockLabel,
@@ -91,6 +92,7 @@ if (root) {
                         productType: p.product_type || 'normal',
                         isSplittable: !!p.is_splittable,
                         itemsPerUnit: parseInt(p.items_per_unit) || 1,
+                        defaultSaleUnit: p.quick_sale_default_unit === 'piece' ? 'piece' : 'unit',
                         rollLength: parseFloat(p.roll_length) || 0,
                         wastePercentage: parseFloat(p.waste_percentage) || 0,
                     })).find((p) => String(p.id) === String(this.productId));
@@ -102,7 +104,7 @@ if (root) {
                     if (this.selectedProduct.productType === 'fractional') {
                         this.unitType = 'roll';
                     } else if (this.selectedProduct.isSplittable) {
-                        this.unitType = 'kit';
+                        this.unitType = this.selectedProduct.defaultSaleUnit === 'piece' ? 'piece' : 'kit';
                     } else {
                         this.unitType = 'default';
                     }

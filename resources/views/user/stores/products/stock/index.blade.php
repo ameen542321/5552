@@ -126,7 +126,7 @@
                     </p>
                 <?php elseif($latestInventoryAudit): ?>
                     <p class="ui-text-caption ui-text-muted mt-2">
-                        آخر جرد سابق: {{ optional($latestInventoryAudit->business_date)->format('Y-m-d') ?: $latestInventoryAudit->created_at->format('Y-m-d') }}
+                        آخر جرد معتمد: {{ optional($latestInventoryAudit->business_date)->format('Y-m-d') ?: $latestInventoryAudit->created_at->format('Y-m-d') }}
                     </p>
                 <?php endif; ?>
             </div>
@@ -147,8 +147,6 @@
                     <?php if($countItem): ?>
                         <span class="block ui-text-soft">كمية المحاسب: {{ $countItem->accountant_quantity }} — الكمية النهائية: {{ $countItem->finalQuantity() }} {{ ['piece'=>'حبة','kit'=>'طقم','meter'=>'متر','roll'=>'رول','unit'=>'وحدة'][$countItem->unit_type] ?? $countItem->unit_type }}</span>
                         <span class="block ui-text-caption">اعتمد فعليًا: {{ $countItem->approved_at?->format('Y-m-d H:i') }} — {{ $countItem->decision === 'adjusted_approved' ? 'عدّل المالك النتيجة' : 'اعتمد المالك نتيجة المحاسب' }}</span>
-                    <?php else: ?>
-                        <span class="block ui-text-soft">سجل جرد سابق قبل تشغيل نظام الجلسات المستقل.</span>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
