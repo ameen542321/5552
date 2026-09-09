@@ -177,6 +177,21 @@ class InventoryCountInterfaceContractTest extends TestCase
         $this->assertStringContainsString("showCollectionToast('error', 'تعذر فتح نافذة المعاينة.')", $collectionScript);
     }
 
+    public function test_owner_credit_collection_requires_a_preview_before_submission(): void
+    {
+        $modal = file_get_contents(__DIR__.'/../../resources/views/components/employee/operation-details-modal.blade.php');
+        $script = file_get_contents(__DIR__.'/../../resources/js/features/employees/owner-credit-collection-preview.js');
+        $app = file_get_contents(__DIR__.'/../../resources/js/app.js');
+
+        $this->assertStringContainsString('data-owner-credit-preview', $modal);
+        $this->assertStringContainsString('مراجعة التحصيل قبل التسجيل', $modal);
+        $this->assertStringContainsString('تأكيد وتسجيل التحصيل', $modal);
+        $this->assertStringContainsString('data-owner-credit-preview-value="amount"', $modal);
+        $this->assertStringContainsString("form.elements.collection_date", $script);
+        $this->assertStringContainsString("mixedRow?.classList.toggle('hidden', method !== 'mixed')", $script);
+        $this->assertStringContainsString("import './features/employees/owner-credit-collection-preview'", $app);
+    }
+
     public function test_draft_review_pdf_fonts_and_dashboard_inventory_alert_follow_shared_interfaces(): void
     {
         $draft = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');

@@ -152,7 +152,11 @@
                             </div>
 
                             @if((float) ($row->remaining_amount ?? 0) > 0 && !empty($row->store_id))
-                                <form method="POST" action="{{ route('user.stores.credit-sales.collect', [$row->store_id, $row->id]) }}" class="ui-card p-4 space-y-3">
+                                @php
+                                    $ownerCollectionFormId = 'owner-credit-collection-form-'.$row->id;
+                                    $ownerCollectionPreviewId = 'owner-credit-collection-preview-'.$row->id;
+                                @endphp
+                                <form id="{{ $ownerCollectionFormId }}" method="POST" action="{{ route('user.stores.credit-sales.collect', [$row->store_id, $row->id]) }}" class="ui-card p-4 space-y-3">
                                     @csrf
                                     <div class="flex items-center gap-2">
                                         <h3 class="ui-title font-bold">تحصيل الآجل</h3>
@@ -172,8 +176,31 @@
                                         <label class="block"><span class="ui-label">مبلغ الكاش عند اختيار ميكس</span><input class="ui-input" type="number" name="cash_amount" min="0" step="0.01" placeholder="0.00"></label>
                                         <label class="block"><span class="ui-label">مبلغ الشبكة عند اختيار ميكس</span><input class="ui-input" type="number" name="card_amount" min="0" step="0.01" placeholder="0.00"></label>
                                     </div>
-                                    <button class="ui-btn ui-btn-success" type="submit">تسجيل التحصيل</button>
+                                    <button class="ui-btn ui-btn-info" type="button"
+                                            data-owner-credit-preview
+                                            data-form-id="{{ $ownerCollectionFormId }}"
+                                            data-modal-id="{{ $ownerCollectionPreviewId }}">معاينة التحصيل</button>
                                 </form>
+
+                                <div id="{{ $ownerCollectionPreviewId }}" class="ui-modal-backdrop hidden">
+                                    <div class="ui-modal-panel">
+                                        <div class="ui-modal-header">
+                                            <h3 class="ui-title font-bold">مراجعة التحصيل قبل التسجيل</h3>
+                                            <button type="button" data-ui-hide="{{ $ownerCollectionPreviewId }}" class="ui-modal-close-danger" aria-label="إغلاق">×</button>
+                                        </div>
+                                        <div class="p-4 space-y-3">
+                                            <div class="ui-card-muted p-3"><span class="ui-text-muted">العملية:</span> <strong class="ui-title">{{ $operationName }}</strong></div>
+                                            <div class="ui-card-muted p-3"><span class="ui-text-muted">المبلغ:</span> <strong class="ui-status-success" data-owner-credit-preview-value="amount">—</strong></div>
+                                            <div class="ui-card-muted p-3"><span class="ui-text-muted">التاريخ:</span> <strong class="ui-title" data-owner-credit-preview-value="date">—</strong></div>
+                                            <div class="ui-card-muted p-3"><span class="ui-text-muted">طريقة التحصيل:</span> <strong class="ui-title" data-owner-credit-preview-value="method">—</strong></div>
+                                            <div class="ui-card-muted p-3 hidden" data-owner-credit-preview-mixed><span class="ui-text-muted">توزيع الميكس:</span> <strong class="ui-title" data-owner-credit-preview-value="mixed">—</strong></div>
+                                            <div class="flex flex-wrap gap-2">
+                                                <button class="ui-btn ui-btn-success" type="submit" form="{{ $ownerCollectionFormId }}">تأكيد وتسجيل التحصيل</button>
+                                                <button class="ui-btn ui-btn-danger" type="button" data-ui-hide="{{ $ownerCollectionPreviewId }}">رجوع</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
                             @endif
 
                             @if($linkedSaleId && !empty($row->store_id))
