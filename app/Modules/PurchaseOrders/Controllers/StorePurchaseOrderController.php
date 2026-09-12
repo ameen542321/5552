@@ -504,11 +504,6 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         if (! in_array($businessDate, $openBusinessDates, true)) {
             throw \Illuminate\Validation\ValidationException::withMessages([
                 'business_date' => 'لا يمكن اعتماد الطلبية في هذا اليوم لأنه مقفل أو غير متاح. اختر أحد أيام العمل المفتوحة: '.implode('، ', $openBusinessDates).'.',
-        $openBusinessDate = app(ShiftLifecycleService::class)->currentShiftContext($store->id)['business_date'];
-        $businessDate = $validated['business_date'] ?? $openBusinessDate;
-        if ($businessDate !== $openBusinessDate) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'business_date' => 'لا يمكن اعتماد الطلبية في فترة مغلقة. اختر اليوم المفتوح: '.$openBusinessDate.'.',
             ]);
         }
         $this->orders->approve($order, auth('web')->user(), $businessDate);
@@ -549,12 +544,6 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         $this->authorizeOrder($store, $order);
         $support = app(SupportSessionService::class)->active($request);
         abort_unless($support && $support->target_role === 'owner', 403);
-        if ($order->approved_at || $order->approval_operation_id) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'workflow_status' => 'لا يمكن إعادة طلبية نُفذ اعتمادها المخزني إلى مرحلة سابقة. استخدم عملية عكس الاعتماد مع إبقاء سجلها.',
-            ]);
-        }
-
         $transitions = PurchaseOrderWorkflow::supportTransitions();
         $validated = $request->validate([
             'workflow_status' => ['required', Rule::in(array_keys($transitions))],
@@ -604,8 +593,6 @@ public function pdf(Store $store, StorePurchaseOrder $order)
             abort_unless($lockedOrder->trashed(), 422, 'الطلبية غير محذوفة.');
             $lockedOrder->restore();
             $lockedOrder->events()->create([
-            $order->restore();
-            $order->events()->create([
                 'event' => 'support_restored',
                 'from_status' => 'deleted',
                 'to_status' => $lockedOrder->workflow_status,
@@ -624,13 +611,6 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         $support = app(SupportSessionService::class)->active($request);
         abort_unless($support && $support->target_role === 'owner', 403);
         abort_unless((int) $order->store_id === (int) $store->id && (int) $store->user_id === (int) auth('web')->id(), 403);
-        if (in_array($order->status, ['received', 'approved'], true)) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'order' => $order->status === 'approved'
-                    ? 'لا تحذف الطلبية المعتمدة نهائيًا. استخدم عملية عكس الاعتماد مع إبقاء سجل التدقيق.'
-                    : 'لا يمكن حذف الطلبية المستلمة نهائيًا؛ يجب إبقاء سجل الاستلام للمراجعة.',
-            ]);
-        }
         $request->validate([
             'confirmation' => ['required', Rule::in([$order->referenceCode()])],
             'support_note' => ['required', 'string', 'min:10', 'max:500'],
