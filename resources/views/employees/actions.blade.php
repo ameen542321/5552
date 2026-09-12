@@ -273,6 +273,7 @@
     'title' => 'إدارة عمليات الأجل',
     'rows' => $operationDetails['credit_sales'],
     'openCreditCollectionDates' => $openCreditCollectionDates,
+    'openCreditCollectionDatesByStore' => $openCreditCollectionDatesByStore ?? [],
     'columns' => ['amount' => 'القيمة', 'remaining_amount' => 'المتبقي', 'date' => 'التاريخ', 'added_by' => 'من نفذ العملية', 'operation_name' => 'اسم العملية', 'description' => 'مرجع العملية', 'collection_payments' => 'التحصيلات'],
 ])
 @include('components.employee.operation-details-modal', [

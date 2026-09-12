@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Employees;
 
 use App\Models\Store;
 use App\Models\Employee;
+use App\Models\Debt;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Services\EmployeeLogService;
@@ -193,6 +194,12 @@ class EmployeeService
                 $newStore = $employee->store;
 
                 if ($oldStore && $newStore) {
+                    $transferredPersonalDebtBalance = (float) Debt::query()
+                        ->where('person_type', Employee::class)
+                        ->where('person_id', $employee->id)
+                        ->where('status', Debt::STATUS_PENDING)
+                        ->where('amount', '>', 0)
+                        ->sum('amount');
                     self::transferEmployeeFinancialRecordsToStore($employee, (int) $employee->store_id, true);
                     $transferLog = EmployeeLogService::add(
                         $employee,
@@ -208,6 +215,7 @@ class EmployeeService
                             'historical_records_preserved' => true,
                             'financial_records_follow_operation_store' => true,
                             'active_accountant_suspended' => true,
+                            'transferred_personal_debt_balance' => $transferredPersonalDebtBalance,
                         ]
                     );
 

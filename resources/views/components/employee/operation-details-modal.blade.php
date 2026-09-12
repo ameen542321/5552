@@ -36,6 +36,7 @@
                         $isLinkedShiftClosed = $linkedSale && !empty($linkedSale->daily_balance_id);
                         $closedShiftWarning = 'تنبيه: العملية مرتبطة بشفت مغلق، وقد يؤدي التعديل أو الحذف إلى فروقات حسابية في التقارير السابقة.';
                         $isHistoricalStoreOperation = (bool) ($row->is_historical_store_operation ?? false);
+                        $rowOpenCreditCollectionDates = $openCreditCollectionDatesByStore[(int) $row->store_id] ?? ($openCreditCollectionDates ?? []);
                     @endphp
 
                     <details class="group ui-disclosure rounded-2xl ui-border ui-surface-muted-bg">
@@ -171,8 +172,8 @@
                                         <label class="block">
                                             <span class="ui-label">تاريخ التحصيل</span>
                                             <select class="ui-input" name="collection_date" required>
-                                                @foreach(($openCreditCollectionDates ?? []) as $openCollectionDate)
-                                                    <option value="{{ $openCollectionDate }}" @selected(old('collection_date', last($openCreditCollectionDates ?? [])) === $openCollectionDate)>{{ $openCollectionDate }}</option>
+                                                @foreach($rowOpenCreditCollectionDates as $openCollectionDate)
+                                                    <option value="{{ $openCollectionDate }}" @selected(old('collection_date', last($rowOpenCreditCollectionDates)) === $openCollectionDate)>{{ $openCollectionDate }}</option>
                                                 @endforeach
                                             </select>
                                         </label>

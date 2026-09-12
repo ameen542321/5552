@@ -23,6 +23,12 @@ final class EmployeeOperationPageViewModel
         $person?->loadMissing(['accountant', 'activeAccountant']);
         $personLabel = $person instanceof Employee && $person->activeAccountant ? 'المحاسب' : 'الموظف';
         $openCreditCollectionDates = app(ShiftLifecycleService::class)->openBusinessDates((int) $person->store_id);
+        $openCreditCollectionDatesByStore = $operationDetails['credit_sales']
+            ->pluck('store_id')
+            ->filter()
+            ->unique()
+            ->mapWithKeys(fn ($storeId) => [(int) $storeId => app(ShiftLifecycleService::class)->openBusinessDates((int) $storeId)])
+            ->all();
 
         return [
             'employee' => $person,
@@ -35,6 +41,7 @@ final class EmployeeOperationPageViewModel
             'recentLogs' => $this->paginatedLogs($operationDetails, $periodStart),
             'logActionMap' => $this->logActionMap(),
             'openCreditCollectionDates' => $openCreditCollectionDates,
+            'openCreditCollectionDatesByStore' => $openCreditCollectionDatesByStore,
         ];
     }
 
@@ -60,7 +67,8 @@ final class EmployeeOperationPageViewModel
 
         $currentStoreOperations = fn (Collection $operations) => $operations->where('store_id', (int) $person->store_id);
         $currentWithdrawals = $currentStoreOperations($details['withdrawals']);
-        $currentDebts = $currentStoreOperations($details['debts']);
+        // المديونية الشخصية المفتوحة تتبع الموظف بعد النقل، بينما يبقى أصل القيد ظاهرًا باسم متجر حدوثه.
+        $currentDebts = $details['debts'];
         $currentCreditSales = $currentStoreOperations($details['credit_sales']);
         $currentAbsences = $currentStoreOperations($details['absences']);
 
