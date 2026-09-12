@@ -35,6 +35,7 @@
                         $isOutsideCurrentMonth = \Carbon\Carbon::parse($linkedSaleDate)->format('Y-m') !== now()->format('Y-m');
                         $isLinkedShiftClosed = $linkedSale && !empty($linkedSale->daily_balance_id);
                         $closedShiftWarning = 'تنبيه: العملية مرتبطة بشفت مغلق، وقد يؤدي التعديل أو الحذف إلى فروقات حسابية في التقارير السابقة.';
+                        $isHistoricalStoreOperation = (bool) ($row->is_historical_store_operation ?? false);
                     @endphp
 
                     <details class="group ui-disclosure rounded-2xl ui-border ui-surface-muted-bg">
@@ -49,6 +50,9 @@
                                     <p class="ui-status-info font-bold">{{ number_format($displayAmount, 2) }} ريال</p>
                                 </div>
                                 <div class="ui-text-soft text-sm">{{ $rowDate }}</div>
+                                @if($isHistoricalStoreOperation)
+                                    <div class="ui-badge ui-badge-warning">{{ $row->operation_store_name }} — بيان تاريخي غير محتسب في المتجر الحالي</div>
+                                @endif
                             </div>
                         </summary>
 
@@ -275,10 +279,16 @@
 
                                         @case('date')
                                             {{ optional($row->date)->format('Y-m-d') ?? $row->date ?? optional($row->created_at)->format('Y-m-d') ?? '-' }}
+                                            @if($row->is_historical_store_operation ?? false)
+                                                <span class="block ui-text-caption ui-status-warning mt-1">{{ $row->operation_store_name }} — بيان تاريخي غير محتسب هنا</span>
+                                            @endif
                                             @break
 
                                         @case('accounting_date')
                                             {{ $row->accounting_date_display ?? '-' }}
+                                            @if($row->is_historical_store_operation ?? false)
+                                                <span class="block ui-text-caption ui-status-warning mt-1">{{ $row->operation_store_name }} — بيان تاريخي غير محتسب هنا</span>
+                                            @endif
                                             @break
 
                                         @case('added_by')
