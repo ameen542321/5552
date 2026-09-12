@@ -94,7 +94,10 @@ class EmployeeActions
                     $existing->password = $request->password;
                 }
 
+                $existing->store_id = $employee->store_id;
+                $existing->user_id = $employee->store->user_id;
                 $existing->status = 'active';
+                $existing->suspension_reason = null;
                 $existing->save();
             });
 

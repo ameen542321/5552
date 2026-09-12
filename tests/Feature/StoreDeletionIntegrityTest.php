@@ -44,7 +44,6 @@ class StoreDeletionIntegrityTest extends TestCase
             'password' => 'password',
             'status' => 'active',
         ]);
-
         $sale = Sale::create([
             'store_id' => $store->id,
             'accountant_id' => $accountant->id,
@@ -103,12 +102,37 @@ class StoreDeletionIntegrityTest extends TestCase
         $this->assertDatabaseMissing('logs', ['id' => $auditLog->id]);
     }
 
-    public function test_transferred_employee_and_financial_records_survive_old_store_deletion(): void
+    public function test_transfer_moves_accountant_membership_but_preserves_historical_financial_store_ownership(): void
     {
         $owner = User::factory()->create(['plan_id' => null]);
         $oldStore = Store::factory()->create(['user_id' => $owner->id]);
         $newStore = Store::factory()->create(['user_id' => $owner->id]);
         $employee = $this->createEmployee($owner, $oldStore, 'موظف منقول');
+        $accountant = Accountant::create([
+            'employee_id' => $employee->id,
+            'user_id' => $owner->id,
+            'store_id' => $oldStore->id,
+            'name' => 'محاسب منقول',
+            'email' => 'transferred-accountant@example.com',
+            'phone' => '0500000011',
+            'password' => 'password',
+            'status' => 'active',
+        ]);
+        $sale = Sale::create([
+            'store_id' => $oldStore->id,
+            'accountant_id' => $accountant->id,
+            'total' => 50,
+            'paid_amount' => 50,
+            'remaining_amount' => 0,
+            'sale_type' => 'cash',
+            'has_invoice' => false,
+        ]);
+        DB::table('device_tokens')->insert([
+            'accountant_id' => $accountant->id,
+            'token' => 'transferred-accountant-device',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
 
         $debt = Debt::create([
             'store_id' => $oldStore->id,
@@ -134,13 +158,14 @@ class StoreDeletionIntegrityTest extends TestCase
         ]);
 
         $employee->update(['store_id' => $newStore->id]);
-        EmployeeService::transferEmployeeFinancialRecordsToStore($employee, $newStore->id);
-
-        DB::transaction(static fn () => $oldStore->forceDelete());
+        EmployeeService::transferEmployeeFinancialRecordsToStore($employee, $newStore->id, true);
 
         $this->assertDatabaseHas('employees', ['id' => $employee->id, 'store_id' => $newStore->id]);
-        $this->assertDatabaseHas('debts', ['id' => $debt->id, 'store_id' => $newStore->id]);
-        $this->assertDatabaseHas('employee_withdrawals', ['id' => $withdrawal->id, 'store_id' => $newStore->id]);
+        $this->assertDatabaseHas('accountants', ['id' => $accountant->id, 'store_id' => $newStore->id, 'status' => 'suspended']);
+        $this->assertDatabaseHas('sales', ['id' => $sale->id, 'store_id' => $oldStore->id, 'accountant_id' => $accountant->id]);
+        $this->assertDatabaseHas('debts', ['id' => $debt->id, 'store_id' => $oldStore->id]);
+        $this->assertDatabaseHas('employee_withdrawals', ['id' => $withdrawal->id, 'store_id' => $oldStore->id]);
+        $this->assertDatabaseMissing('device_tokens', ['accountant_id' => $accountant->id]);
     }
 
     private function createEmployee(User $owner, Store $store, string $name): Employee
