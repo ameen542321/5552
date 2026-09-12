@@ -4,10 +4,7 @@
 <div class="mx-auto max-w-7xl space-y-6 px-4 py-6" dir="rtl">
     <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
-            <div class="flex items-center gap-2">
-                <h1 class="ui-title text-2xl font-bold">فحص سلامة طلبيات التوريد</h1>
-                <x-ui.help title="ماذا يفحص؟" body="يقارن الحالة العامة بالمرحلة، ويتحقق من أوقات الإرسال والاستلام والاعتماد، ومعرفات الاعتماد والعكس، ولقطات المخزون. الفحص للعرض فقط ولا يصلح أو يحذف أي بيانات." />
-            </div>
+            <h1 class="ui-title text-2xl font-bold">فحص سلامة طلبيات التوريد</h1>
             <p class="ui-text-soft mt-1">فحص يدوي للأدمن فقط؛ يعرض الحالات المتناقضة ولا يغير أي بيانات أو مخزون.</p>
         </div>
         <div class="ui-card-muted px-5 py-3 text-center">

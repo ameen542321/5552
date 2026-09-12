@@ -23,12 +23,10 @@ class StorePurchaseOrderService
     public function __construct(
         private ?PurchaseOrderCostCalculator $costCalculator = null,
         private ?PurchaseOrderNotificationService $notifications = null,
-        private ?PurchaseOrderLimitService $limits = null,
     )
     {
         $this->costCalculator ??= new PurchaseOrderCostCalculator();
         $this->notifications ??= new PurchaseOrderNotificationService();
-        $this->limits ??= new PurchaseOrderLimitService();
     }
 
     /**
@@ -43,18 +41,13 @@ class StorePurchaseOrderService
             Store::whereKey($store->id)->lockForUpdate()->firstOrFail();
             $weekStartsAt = now()->startOfWeek(CarbonInterface::SATURDAY);
             $weekEndsAt = $weekStartsAt->copy()->addDays(6)->endOfDay();
-            // يقرأ الحارس الحد الفعال داخل قفل المتجر لمنع طلبين متزامنين من تجاوز الحد.
-            $limitSetting = $this->limits->forStore($store);
-            $weeklyLimit = $limitSetting->effectiveWeeklyLimit();
-            $countedStatuses = $limitSetting->effectiveCountedStatuses();
             $weeklyOrdersCount = StorePurchaseOrder::where('store_id', $store->id)
-                // لا تدخل الحالات المستبعدة إداريًا في العدد الأسبوعي.
-                ->whereIn('status', $countedStatuses)
+                ->where('status', '!=', 'cancelled')
                 ->whereBetween('created_at', [$weekStartsAt, $weekEndsAt])
                 ->count();
-            if ($weeklyOrdersCount >= $weeklyLimit) {
+            if ($weeklyOrdersCount >= 4) {
                 throw ValidationException::withMessages([
-                    'order' => 'وصل المتجر إلى الحد الأسبوعي: '.$weeklyLimit.' طلبيات محتسبة من السبت إلى الجمعة.',
+                    'order' => 'وصل المتجر إلى الحد الأسبوعي: 4 طلبيات غير ملغاة من السبت إلى الجمعة.',
                 ]);
             }
 
