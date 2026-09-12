@@ -837,6 +837,7 @@
             <form id="edit-sale-form" method="POST" action="" class="flex-1 space-y-4 overflow-y-auto px-4 py-4 sm:px-5">
                 @csrf
                 @method('PUT')
+                <input type="hidden" name="items_submitted" value="1">
 
                 @if($failedEditSaleId && $errors->any())
                 <div class="rounded-lg border ui-border ui-status-danger-bg p-3 text-sm ui-status-danger">

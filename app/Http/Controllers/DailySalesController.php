@@ -940,7 +940,7 @@ class DailySalesController extends Controller
 
         $validated = $request->validate([
             'sale_type'   => 'required|in:cash,card,credit,mixed',
-            'paid_amount' => 'required|numeric|min:0',
+            'paid_amount' => 'nullable|numeric|min:0',
             'labor_total' => 'nullable|numeric|min:0',
             'description' => 'nullable|string|max:1000',
             'operation_name' => 'nullable|string|max:1000',
@@ -960,11 +960,49 @@ class DailySalesController extends Controller
             'item_unit_types' => 'nullable|array',
             'item_unit_types.*' => 'nullable|in:unit,piece',
             'record_remaining_as_credit' => 'nullable|boolean',
+            'items_submitted' => 'nullable|boolean',
         ], [
+            'sale_type.required' => 'نوع البيع مطلوب.',
+            'sale_type.in' => 'نوع البيع المحدد غير صالح.',
+            'paid_amount.numeric' => 'يجب أن يكون المبلغ المدفوع رقمًا صالحًا.',
+            'paid_amount.min' => 'لا يمكن أن يكون المبلغ المدفوع أقل من صفر.',
+            'labor_total.numeric' => 'يجب أن تكون قيمة شغل اليد رقمًا صالحًا.',
+            'labor_total.min' => 'لا يمكن أن تكون قيمة شغل اليد أقل من صفر.',
+            'description.string' => 'يجب أن تكون الملاحظات نصًا صالحًا.',
+            'description.max' => 'يجب ألا تتجاوز الملاحظات 1000 حرف.',
+            'operation_name.string' => 'يجب أن يكون اسم العملية نصًا صالحًا.',
+            'operation_name.max' => 'يجب ألا يتجاوز اسم العملية 1000 حرف.',
+            'credit_note.string' => 'يجب أن يكون اسم عملية الأجل نصًا صالحًا.',
+            'credit_note.max' => 'يجب ألا يتجاوز اسم عملية الأجل 1000 حرف.',
             'cash_amount.required_if' => 'مبلغ الكاش مطلوب في عملية الميكس.',
+            'cash_amount.numeric' => 'يجب أن يكون مبلغ الكاش رقمًا صالحًا.',
             'cash_amount.gt' => 'مبلغ الكاش في عملية الميكس يجب أن يكون أكبر من صفر.',
             'card_amount.required_if' => 'مبلغ الشبكة مطلوب في عملية الميكس.',
+            'card_amount.numeric' => 'يجب أن يكون مبلغ الشبكة رقمًا صالحًا.',
             'card_amount.gt' => 'مبلغ الشبكة في عملية الميكس يجب أن يكون أكبر من صفر.',
+            'employee_id.exists' => 'الموظف المحدد غير موجود.',
+            'debt_amount.numeric' => 'يجب أن تكون قيمة الأجل رقمًا صالحًا.',
+            'debt_amount.min' => 'لا يمكن أن تكون قيمة الأجل أقل من صفر.',
+            'item_product_ids.array' => 'بيانات المنتجات المرسلة غير صالحة.',
+            'item_product_ids.*.required' => 'يجب اختيار المنتج لكل سطر.',
+            'item_product_ids.*.integer' => 'معرف المنتج غير صالح.',
+            'item_product_ids.*.exists' => 'أحد المنتجات المحددة غير موجود.',
+            'item_ids.array' => 'بيانات أسطر المنتجات غير صالحة.',
+            'item_ids.*.required' => 'معرف سطر المنتج مطلوب.',
+            'item_ids.*.integer' => 'معرف سطر المنتج غير صالح.',
+            'item_ids.*.min' => 'معرف سطر المنتج غير صالح.',
+            'item_quantities.array' => 'بيانات كميات المنتجات غير صالحة.',
+            'item_quantities.*.required' => 'كمية المنتج مطلوبة.',
+            'item_quantities.*.numeric' => 'يجب أن تكون كمية المنتج رقمًا صالحًا.',
+            'item_quantities.*.min' => 'يجب أن تكون كمية المنتج أكبر من صفر.',
+            'item_prices.array' => 'بيانات أسعار المنتجات غير صالحة.',
+            'item_prices.*.required' => 'سعر المنتج مطلوب.',
+            'item_prices.*.numeric' => 'يجب أن يكون سعر المنتج رقمًا صالحًا.',
+            'item_prices.*.min' => 'لا يمكن أن يكون سعر المنتج أقل من صفر.',
+            'item_unit_types.array' => 'بيانات طرق بيع المنتجات غير صالحة.',
+            'item_unit_types.*.in' => 'طريقة بيع المنتج المحددة غير صالحة.',
+            'record_remaining_as_credit.boolean' => 'خيار تسجيل المبلغ المتبقي كآجل غير صالح.',
+            'items_submitted.boolean' => 'بيانات تعديل المنتجات غير صالحة.',
         ]);
 
         $creditRowsQuery = CreditSale::where('store_id', $store->id)
@@ -1063,7 +1101,10 @@ class DailySalesController extends Controller
         $submittedQuantities = array_values($validated['item_quantities'] ?? []);
         $submittedPrices = array_values($validated['item_prices'] ?? []);
         $submittedUnitTypes = array_values($validated['item_unit_types'] ?? []);
-        $hasItemEdits = count($submittedProductIds) > 0 || count($submittedItemIds) > 0;
+        // وجود العلامة يعني أن نموذج تعديل المنتجات أُرسل حتى لو حذف المستخدم كل الأسطر.
+        $hasItemEdits = $request->boolean('items_submitted')
+            || count($submittedProductIds) > 0
+            || count($submittedItemIds) > 0;
         $itemEditPlan = collect();
         $itemDeletePlan = collect();
         $productsTotal = (float) ($sale->products_total ?? 0);
@@ -1194,15 +1235,21 @@ class DailySalesController extends Controller
         $taxAmount = $productsTotal * ($taxRate / 100);
         $finalTotal = $productsTotal + $taxAmount + $laborTotal;
 
-        $enteredAmount = (float) $validated['paid_amount'];
         $enteredDebtAmount = (float) ($validated['debt_amount'] ?? 0);
         $recordRemainingAsCredit = $request->boolean('record_remaining_as_credit');
         $selectedEmployeeId = $validated['employee_id'] ?? $sale->employee_id;
-        $paidAmount = $enteredAmount;
         $cashAmount = 0.0;
         $cardAmount = 0.0;
         $storedOperationAmount = (float) (($sale->paid_amount ?? 0) + ($sale->remaining_amount ?? 0));
         $operationAmountBeforePaymentEdit = $hasItemEdits ? $finalTotal : max($finalTotal, $storedOperationAmount);
+        $enteredAmount = $request->filled('paid_amount')
+            ? (float) $validated['paid_amount']
+            : match ($validated['sale_type']) {
+                'credit' => 0.0,
+                'mixed' => (float) ($validated['cash_amount'] ?? 0) + (float) ($validated['card_amount'] ?? 0),
+                default => $operationAmountBeforePaymentEdit,
+            };
+        $paidAmount = $enteredAmount;
         $hasCollectedCreditConversion = $originalSaleType === 'credit'
             && (float) ($sale->paid_amount ?? 0) > 0
             && (float) ($sale->remaining_amount ?? 0) > 0
