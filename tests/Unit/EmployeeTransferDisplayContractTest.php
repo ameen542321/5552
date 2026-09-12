@@ -44,6 +44,8 @@ class EmployeeTransferDisplayContractTest extends TestCase
         $accountantController = file_get_contents(__DIR__.'/../../app/Http/Controllers/Accoun5555tantController.php');
         $employeeActions = file_get_contents(__DIR__.'/../../app/Http/Controllers/Employees/EmployeeActions.php');
         $auditCommand = file_get_contents(__DIR__.'/../../app/Console/Commands/AuditEmployeeTransfers.php');
+        $repairCommand = file_get_contents(__DIR__.'/../../app/Console/Commands/RepairEmployeeTransfers.php');
+        $repairService = file_get_contents(__DIR__.'/../../app/Services/Employees/EmployeeTransferRepairService.php');
 
         $this->assertStringContainsString('EmployeeTransferService::class', $employeeController);
         $this->assertStringContainsString('EmployeeTransferService::class', $accountantController);
@@ -51,5 +53,10 @@ class EmployeeTransferDisplayContractTest extends TestCase
         $this->assertStringContainsString('EmployeeAccountantLifecycleService::class', $employeeActions);
         $this->assertStringContainsString('employees:audit-transfers', $auditCommand);
         $this->assertStringContainsString('لا ينفذ أي تصحيح تلقائي', $auditCommand);
+        $this->assertStringContainsString('employees:repair-transfers', $repairCommand);
+        $this->assertStringContainsString('--backup-confirmed', $repairCommand);
+        $this->assertStringContainsString('REPAIR_EMPLOYEE_TRANSFERS', $repairCommand);
+        $this->assertStringContainsString('employee_transfer_data_repaired', $repairService);
+        $this->assertStringContainsString('$totalsBefore !== $totalsAfter', $repairService);
     }
 }

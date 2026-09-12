@@ -11,6 +11,19 @@ use Illuminate\Support\Facades\Schema;
 
 class EmployeeTransferAuditService
 {
+    public const HISTORICAL_TABLES = [
+        'employee_withdrawals',
+        'debts',
+        'credit_sales',
+        'employee_credit_collections',
+        'employee_absences',
+        'employee_logs',
+    ];
+
+    public function __construct(
+        private readonly EmployeeHistoricalStoreService $historicalStores,
+    ) {}
+
     /**
      * يبني تقرير معاينة فقط. لا تعدّل هذه الخدمة أي سجل.
      */
@@ -69,7 +82,10 @@ class EmployeeTransferAuditService
             ->flatten(1)
             ->values();
 
-        $suspectedMovedHistoricalRows = $this->suspectedMovedHistoricalRows($transfers);
+        $suspectedMovedHistoricalRows = $this->suspectedMovedHistoricalRows(
+            $transfers,
+            $incompleteTransfers->pluck('person_id')->map(fn ($id) => (int) $id)->unique(),
+        );
 
         return compact(
             'mismatchedAccountants',
@@ -80,52 +96,128 @@ class EmployeeTransferAuditService
         );
     }
 
-    private function suspectedMovedHistoricalRows(Collection $transfers): Collection
+    private function suspectedMovedHistoricalRows(Collection $transfers, Collection $unsafeEmployeeIds): Collection
     {
-        $tables = [
-            'employee_withdrawals',
-            'debts',
-            'credit_sales',
-            'employee_absences',
-            'employee_salary_reports',
-        ];
         $suspects = collect();
+        $employeeIds = $transfers->pluck('person_id')
+            ->map(fn ($id) => (int) $id)
+            ->reject(fn ($id) => $unsafeEmployeeIds->contains($id))
+            ->unique()
+            ->values();
+        $employees = Employee::withTrashed()->whereIn('id', $employeeIds)->get()->keyBy('id');
 
-        foreach ($transfers as $transfer) {
-            $meta = $transfer->meta ?: [];
-            if (! isset($meta['new_store_id'], $meta['effective_date'])) {
-                continue;
-            }
-
-            foreach ($tables as $table) {
-                if (! Schema::hasTable($table)
-                    || ! Schema::hasColumn($table, 'person_id')
-                    || ! Schema::hasColumn($table, 'person_type')
-                    || ! Schema::hasColumn($table, 'store_id')) {
+        foreach ($employees as $employee) {
+            foreach (self::HISTORICAL_TABLES as $table) {
+                if (! $this->supportsHistoricalAudit($table)) {
                     continue;
                 }
 
-                $dateColumn = Schema::hasColumn($table, 'date') ? 'date' : 'created_at';
+                $dateExpression = $this->dateExpression($table);
+                $columns = ['id', 'store_id', DB::raw("{$dateExpression} as operation_date")];
+                if (Schema::hasColumn($table, 'amount')) {
+                    $columns[] = 'amount';
+                }
+                if (in_array($table, ['credit_sales', 'employee_credit_collections'], true)
+                    && Schema::hasColumn($table, 'sale_id')) {
+                    $columns[] = 'sale_id';
+                }
+                if ($table === 'employee_credit_collections' && Schema::hasColumn($table, 'credit_sale_id')) {
+                    $columns[] = 'credit_sale_id';
+                }
+                if ($table === 'employee_logs') {
+                    $columns[] = 'action_name';
+                }
+
                 $rows = DB::table($table)
                     ->where('person_type', Employee::class)
-                    ->where('person_id', $transfer->person_id)
-                    ->where('store_id', $meta['new_store_id'])
-                    ->whereDate($dateColumn, '<', $meta['effective_date'])
-                    ->get(['id', 'store_id', $dateColumn]);
+                    ->where('person_id', $employee->id)
+                    ->when($table === 'employee_logs', fn ($query) => $query->where('action_name', '!=', 'employee_transferred'))
+                    ->get($columns);
 
                 foreach ($rows as $row) {
+                    if (! $row->operation_date) {
+                        continue;
+                    }
+
+                    $expectedStoreId = $this->expectedStoreId($employee, $table, $row);
+                    if ($expectedStoreId <= 0 || $expectedStoreId === (int) $row->store_id) {
+                        continue;
+                    }
+
                     $suspects->push([
-                        'employee_id' => $transfer->person_id,
-                        'transfer_log_id' => $transfer->id,
+                        'employee_id' => (int) $employee->id,
                         'table' => $table,
-                        'row_id' => $row->id,
-                        'recorded_store_id' => $row->store_id,
-                        'recorded_date' => $row->{$dateColumn},
+                        'row_id' => (int) $row->id,
+                        'recorded_store_id' => (int) $row->store_id,
+                        'expected_store_id' => $expectedStoreId,
+                        'recorded_date' => (string) $row->operation_date,
+                        'amount' => (float) ($row->amount ?? 0),
+                        'basis' => $this->storeResolutionBasis($table, $row),
                     ]);
                 }
             }
         }
 
         return $suspects;
+    }
+
+    private function supportsHistoricalAudit(string $table): bool
+    {
+        return Schema::hasTable($table)
+            && Schema::hasColumn($table, 'person_id')
+            && Schema::hasColumn($table, 'person_type')
+            && Schema::hasColumn($table, 'store_id')
+            && (Schema::hasColumn($table, 'date')
+                || Schema::hasColumn($table, 'business_date')
+                || Schema::hasColumn($table, 'collection_date')
+                || Schema::hasColumn($table, 'month')
+                || Schema::hasColumn($table, 'created_at'));
+    }
+
+    private function dateExpression(string $table): string
+    {
+        $columns = collect(['business_date', 'collection_date', 'date', 'created_at'])
+            ->filter(fn ($column) => Schema::hasColumn($table, $column))
+            ->values();
+
+        return $columns->count() > 1
+            ? 'COALESCE(' . $columns->implode(', ') . ')'
+            : (string) $columns->first();
+    }
+
+    private function expectedStoreId(Employee $employee, string $table, object $row): int
+    {
+        if (in_array($table, ['credit_sales', 'employee_credit_collections'], true)
+            && ! empty($row->sale_id)
+            && Schema::hasTable('sales')) {
+            $saleStoreId = DB::table('sales')->where('id', $row->sale_id)->value('store_id');
+            if ($saleStoreId) {
+                return (int) $saleStoreId;
+            }
+        }
+
+        if ($table === 'employee_credit_collections'
+            && ! empty($row->credit_sale_id)
+            && Schema::hasTable('credit_sales')) {
+            $creditStoreId = DB::table('credit_sales')->where('id', $row->credit_sale_id)->value('store_id');
+            if ($creditStoreId) {
+                return (int) $creditStoreId;
+            }
+        }
+
+        return $this->historicalStores->employeeStoreIdAtPeriodEnd($employee, $row->operation_date);
+    }
+
+    private function storeResolutionBasis(string $table, object $row): string
+    {
+        if (in_array($table, ['credit_sales', 'employee_credit_collections'], true) && ! empty($row->sale_id)) {
+            return 'linked_sale_store';
+        }
+
+        if ($table === 'employee_credit_collections' && ! empty($row->credit_sale_id)) {
+            return 'linked_credit_sale_store';
+        }
+
+        return 'employee_transfer_timeline';
     }
 }

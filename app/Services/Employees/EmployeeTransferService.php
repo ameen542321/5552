@@ -32,6 +32,13 @@ class EmployeeTransferService
             ->where('person_id', $employee->id)
             ->where('status', Debt::STATUS_PENDING)
             ->where('amount', '>', 0)
+            ->where(function ($query) use ($effectiveDate) {
+                $query->whereDate('date', '<', $effectiveDate->toDateString())
+                    ->orWhere(function ($fallback) use ($effectiveDate) {
+                        $fallback->whereNull('date')
+                            ->where('created_at', '<', $effectiveDate->copy()->startOfDay());
+                    });
+            })
             ->sum('amount');
 
         $accountant = $this->accountantLifecycle->suspendAfterTransfer($employee);
@@ -52,6 +59,7 @@ class EmployeeTransferService
                 'financial_records_follow_operation_store' => true,
                 'active_accountant_suspended' => (bool) $accountant,
                 'transferred_personal_debt_balance' => $transferredPersonalDebtBalance,
+                'debt_balance_as_of' => $effectiveDate->copy()->subDay()->toDateString(),
             ],
         );
 
