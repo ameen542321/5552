@@ -4,11 +4,12 @@ namespace App\Http\Controllers\Employees;
 
 use App\Models\Store;
 use App\Models\Employee;
-use App\Models\Debt;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Services\EmployeeLogService;
 use App\Services\Employees\EmployeeHistoricalStoreService;
+use App\Services\Employees\EmployeeAccountantLifecycleService;
+use App\Services\Employees\EmployeeTransferService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
@@ -194,34 +195,11 @@ class EmployeeService
                 $newStore = $employee->store;
 
                 if ($oldStore && $newStore) {
-                    $transferredPersonalDebtBalance = (float) Debt::query()
-                        ->where('person_type', Employee::class)
-                        ->where('person_id', $employee->id)
-                        ->where('status', Debt::STATUS_PENDING)
-                        ->where('amount', '>', 0)
-                        ->sum('amount');
-                    self::transferEmployeeFinancialRecordsToStore($employee, (int) $employee->store_id, true);
-                    $transferLog = EmployeeLogService::add(
+                    app(EmployeeTransferService::class)->finalizeMovedEmployee(
                         $employee,
-                        'employee_transferred',
-                        "تم نقل الموظف من متجر {$oldStore->name} إلى متجر {$newStore->name}. بقيت جميع العمليات التاريخية في متجر حدوثها دون تغيير. إذا كان للموظف حساب محاسب فقد نُقل ارتباط الحساب إلى المتجر الجديد وأُوقف مؤقتًا حتى تتم مراجعته.",
-                        null,
-                        [
-                            'old_store_id' => $oldStore->id,
-                            'old_store_name' => $oldStore->name,
-                            'new_store_id' => $newStore->id,
-                            'new_store_name' => $newStore->name,
-                            'effective_date' => $transferEffectiveDate?->toDateString(),
-                            'historical_records_preserved' => true,
-                            'financial_records_follow_operation_store' => true,
-                            'active_accountant_suspended' => true,
-                            'transferred_personal_debt_balance' => $transferredPersonalDebtBalance,
-                        ]
+                        $oldStore,
+                        $transferEffectiveDate,
                     );
-
-                    if ($transferLog && $transferEffectiveDate) {
-                        $transferLog->forceFill(['created_at' => $transferEffectiveDate])->save();
-                    }
                 }
             }
 
@@ -307,24 +285,13 @@ class EmployeeService
      */
     public static function transferEmployeeFinancialRecordsToStore(Employee $employee, int $newStoreId, bool $suspendActiveAccountant = false): void
     {
-        $accountant = $employee->accountant()->withTrashed()->first();
-
-        if (! $accountant) {
-            return;
+        if ((int) $employee->store_id !== $newStoreId) {
+            $employee->setAttribute('store_id', $newStoreId);
+            $employee->setRelation('store', Store::findOrFail($newStoreId));
         }
-
-        $accountantUpdate = ['store_id' => $newStoreId];
 
         if ($suspendActiveAccountant) {
-            $accountantUpdate['status'] = 'suspended';
-            $accountantUpdate['suspension_reason'] = 'تم إيقاف الحساب مؤقتًا بعد نقل الموظف إلى متجر آخر.';
-        }
-
-        $accountant->update($accountantUpdate);
-
-        // رموز الأجهزة لا تمنح وصولًا بعد النقل، ويجبر حارس المحاسب الحساب الموقوف على تسجيل الخروج.
-        if ($suspendActiveAccountant && \Illuminate\Support\Facades\Schema::hasTable('device_tokens')) {
-            DB::table('device_tokens')->where('accountant_id', $accountant->id)->delete();
+            app(EmployeeAccountantLifecycleService::class)->suspendAfterTransfer($employee);
         }
     }
 

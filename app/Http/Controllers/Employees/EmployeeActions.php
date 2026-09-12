@@ -8,6 +8,7 @@ use Illuminate\Http\Request;
 use App\Services\EmployeeLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use App\Services\Employees\EmployeeAccountantLifecycleService;
 
 /**
  * --------------------------------------------------------------------------
@@ -77,15 +78,6 @@ class EmployeeActions
             ]);
 
             DB::transaction(function () use ($existing, $employee, $request) {
-                Employee::whereKey($employee->id)->lockForUpdate()->firstOrFail();
-                if (Accountant::where('employee_id', $employee->id)->where('status', 'active')->where('id', '!=', $existing->id)->exists()) {
-                    throw ValidationException::withMessages(['accountant' => 'يوجد حساب محاسب فعال لهذا الموظف بالفعل.']);
-                }
-
-                Accountant::where('employee_id', $employee->id)
-                    ->where('id', '!=', $existing->id)
-                    ->update(['status' => 'suspended']);
-
                 if ($existing->trashed()) {
                     $existing->restore();
                 }
@@ -96,9 +88,9 @@ class EmployeeActions
 
                 $existing->store_id = $employee->store_id;
                 $existing->user_id = $employee->store->user_id;
-                $existing->status = 'active';
-                $existing->suspension_reason = null;
                 $existing->save();
+
+                app(EmployeeAccountantLifecycleService::class)->activateForEmployee($existing, $employee);
             });
 
             // سجل العملية
@@ -135,7 +127,7 @@ class EmployeeActions
 
                 Accountant::where('employee_id', $employee->id)->update(['status' => 'suspended']);
 
-                return Accountant::create([
+                $accountant = Accountant::create([
                     'employee_id' => $employee->id,
                     'user_id'     => $user->id,
                     'store_id'    => $employee->store_id,
@@ -144,8 +136,12 @@ class EmployeeActions
                     'phone'       => $employee->phone,
                     'password'    => $request->password,
                     'role'        => 'accountant',
-                    'status'      => 'active',
+                    'status'      => 'suspended',
                 ]);
+
+                app(EmployeeAccountantLifecycleService::class)->activateForEmployee($accountant, $employee);
+
+                return $accountant;
             });
 
             // سجل العملية
