@@ -224,16 +224,24 @@
 
     @if($order->events->isNotEmpty() && !in_array($order->workflow_status, ['returned_for_edit', 'returned_for_count', 'pending_receipt_confirmation'], true))
         <div class="ui-card p-5 space-y-3">
-            <h2 class="ui-title text-lg font-black">سجل الطلبية</h2>
+            <div class="flex items-center gap-2">
+                <h2 class="ui-title text-lg font-black">سجل الطلبية</h2>
+                <x-ui.help title="سجل أحداث الطلبية" body="يعرض ما حدث بالترتيب مع وقت التنفيذ. التعديل أو الاستلام لا يغير المخزون؛ يتغير المخزون عند الاعتماد النهائي فقط، وعملية العكس تنشئ حركة مقابلة مع إبقاء السجل." />
+            </div>
             @foreach($order->events->sortByDesc('created_at') as $event)
                 <div class="ui-card-muted p-3">
-                    @if($event->event === 'item_added')
-                        <span>أضاف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}</span>
-                    @elseif($event->event === 'item_deleted')
-                        <span>حذف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}</span>
-                    @else
-                        <span>{{ $event->note ?: ($workflowLabels[$event->to_status] ?? 'تحديث الطلبية') }}</span>
-                    @endif
+                    <div class="flex items-start gap-2">
+                        <span class="flex-1">
+                            @if($event->event === 'item_added')
+                                أضاف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}
+                            @elseif($event->event === 'item_deleted')
+                                حذف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}
+                            @else
+                                {{ $event->note ?: ($workflowLabels[$event->to_status] ?? 'تحديث الطلبية') }}
+                            @endif
+                        </span>
+                        <x-ui.help title="ماذا يعني هذا الحدث؟" :body="\App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::eventHelp($event->event)" />
+                    </div>
                     <time class="block ui-text-muted">{{ $event->created_at?->format('Y-m-d H:i') }}</time>
                 </div>
             @endforeach
