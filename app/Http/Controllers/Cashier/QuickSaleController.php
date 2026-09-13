@@ -18,6 +18,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use App\Services\NotificationService;
 use App\Support\ProductProfitCostCalculator;
+use App\Support\ProductQuantityFormatter;
 use Illuminate\Support\Facades\Validator;
 use Carbon\Carbon;
 
@@ -390,9 +391,11 @@ class QuickSaleController extends Controller
             $alreadyReserved = (float) ($reservedQuantityByProduct[$product->id] ?? 0);
             $requiredForProduct = $alreadyReserved + $quantityToDecrement;
             if (round((float) $product->quantity, 4) < round($requiredForProduct, 4)) {
+                $availableLabel = ProductQuantityFormatter::stockSnapshot($product, (float) $product->quantity);
+                $requiredLabel = ProductQuantityFormatter::stockSnapshot($product, $requiredForProduct);
                 $productErrors[] = "{$product->name}: المخزون غير كافٍ. المتوفر: "
-                    . number_format((float) $product->quantity, 3)
-                    . "، المطلوب للعملية: " . number_format($requiredForProduct, 3);
+                    . $availableLabel
+                    . "، المطلوب للعملية: " . $requiredLabel;
                 Log::warning('⚠️ مخزون غير كاف', [
                     'product' => $product->name,
                     'available' => $product->quantity,

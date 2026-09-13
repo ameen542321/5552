@@ -20,6 +20,7 @@ use App\Http\Controllers\Users\UserSettingController;
 use App\Http\Controllers\Users\SupportTicketController;
 use App\Http\Controllers\Cashier\InvoiceController;
 use App\Http\Controllers\Tools\StockMovementDateCorrectionController;
+use App\Http\Controllers\InventoryCountController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -102,7 +103,20 @@ Route::middleware(['owner.unified'])->prefix('user')->name('user.')->group(funct
         Route::patch('/{store}/toggle-status', [StoreController::class, 'toggleStatus'])->name('toggle-status');
 
         // تطبيق الحارس على العمليات "داخل" المتجر فقط
-        Route::middleware(['store.check'])->group(function () {
+            Route::middleware(['store.check'])->group(function () {
+            Route::prefix('/{store}/inventory-counts')->name('inventory-counts.')->group(function () {
+                Route::get('/', [InventoryCountController::class, 'index'])->name('index');
+                Route::get('/create', [InventoryCountController::class, 'create'])->name('create');
+                Route::post('/selection', [InventoryCountController::class, 'updateSelection'])->name('selection');
+                Route::post('/', [InventoryCountController::class, 'store'])->name('store');
+                Route::get('/{inventoryCount}', [InventoryCountController::class, 'show'])->name('show');
+                Route::post('/{inventoryCount}/send', [InventoryCountController::class, 'send'])->name('send');
+                Route::post('/{inventoryCount}/cancel', [InventoryCountController::class, 'cancel'])->name('cancel');
+                Route::post('/{inventoryCount}/items/{item}/decision', [InventoryCountController::class, 'decide'])->name('items.decision');
+                Route::post('/{inventoryCount}/bulk-approve', [InventoryCountController::class, 'bulkApprove'])->name('bulk-approve');
+                Route::get('/{inventoryCount}/pdf', [InventoryCountController::class, 'pdf'])->name('pdf');
+                Route::delete('/{inventoryCount}', [InventoryCountController::class, 'destroy'])->name('destroy');
+            });
             Route::get('/{store}', [StoreController::class, 'show'])->name('show');
             Route::get('/{store}/edit', [StoreController::class, 'edit'])->name('edit');
             Route::get('/{store}/details', [StoreController::class, 'details'])->name('details');
@@ -129,6 +143,7 @@ Route::middleware(['owner.unified'])->prefix('user')->name('user.')->group(funct
             Route::delete('/{store}/daily-sales/{sale}', [DailySalesController::class, 'destroy'])->name('daily.destroy');
             Route::put('/{store}/daily-sales/financial/{type}/{id}', [DailySalesController::class, 'updateFinancialOperation'])->name('daily.financial.update');
             Route::delete('/{store}/daily-sales/financial/{type}/{id}', [DailySalesController::class, 'destroyFinancialOperation'])->name('daily.financial.destroy');
+            Route::post('/{store}/credit-sales/{creditSale}/collect', [EmployeeFinanceController::class, 'ownerStoreCollection'])->name('credit-sales.collect');
 
             // ========== ✅ فواتير المتجر (للمالك) ==========
             Route::prefix('/{store}/invoices')->name('invoices.')->group(function () {
@@ -209,6 +224,14 @@ Route::middleware(['owner.unified'])->prefix('user')->name('user.')->group(funct
                     Route::post('/', [ProductController::class, 'store'])->name('store');
                     Route::get('/export/csv', [ProductController::class, 'exportCsv'])->name('export.csv');
                     Route::post('/import/csv', [ProductController::class, 'importCsv'])->name('import.csv');
+
+                    // يجب تسجيل مسارات المخزون قبل مسارات المنتج الديناميكية حتى لا تلتقطها تلك المسارات.
+                    Route::get('/{product}/stock', [ProductStockController::class, 'index'])->name('stock');
+                    Route::post('/{product}/stock/audit-confirm', [ProductStockController::class, 'confirmAudit'])->name('stock.audit-confirm');
+                    Route::delete('/{product}/stock/audit-confirm', [ProductStockController::class, 'cancelAuditConfirmation'])->name('stock.audit-confirm.cancel');
+                    Route::post('/{product}/stock/increase', [ProductStockController::class, 'increase'])->name('stock.increase');
+                    Route::post('/{product}/stock/decrease', [ProductStockController::class, 'decrease'])->name('stock.decrease');
+
                     Route::get('/{product}/price-history', [ProductController::class, 'priceHistory'])->name('price-history');
                     Route::get('/{product}/edit', [ProductController::class, 'edit'])->name('edit');
                     Route::put('/{product}', [ProductController::class, 'update'])->name('update');
@@ -220,12 +243,6 @@ Route::middleware(['owner.unified'])->prefix('user')->name('user.')->group(funct
                     Route::delete('/{id}/force-delete', [ProductController::class, 'forcedelete'])->name('force-delete');
                     Route::patch('/{id}/archive-message', [ProductController::class, 'updateArchiveMessage'])->name('archive-message');
 
-                    // إدارة المخزون الفردي
-                    Route::get('/{product}/stock', [ProductStockController::class, 'index'])->name('stock');
-                    Route::post('/{product}/stock/audit-confirm', [ProductStockController::class, 'confirmAudit'])->name('stock.audit-confirm');
-                    Route::delete('/{product}/stock/audit-confirm', [ProductStockController::class, 'cancelAuditConfirmation'])->name('stock.audit-confirm.cancel');
-                    Route::post('/{product}/stock/increase', [ProductStockController::class, 'increase'])->name('stock.increase');
-                    Route::post('/{product}/stock/decrease', [ProductStockController::class, 'decrease'])->name('stock.decrease');
                 });
 
                 // صفحة المصروفات الخاصة بالمالك داخل المتجر: متابعة وإضافة وتعديل وحذف.

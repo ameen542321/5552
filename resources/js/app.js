@@ -17,6 +17,7 @@ import './features/accountant/expense-interface';
 import './features/employees/actions-interface';
 import './features/employees/index-interface';
 import './features/employees/debt-interface';
+import './features/employees/owner-credit-collection-preview';
 import './features/subscriptions/renew-interface';
 import './features/shifts/gap-confirmations';
 import './features/cashier/internal-use-interface';

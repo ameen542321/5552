@@ -42,6 +42,9 @@ class EmployeeReports
 
         $person->loadMissing('store.user');
 
+        $employeeProfile = $person instanceof Employee ? $person : $person->employee;
+        $employeeProfile?->loadMissing(['store.user', 'accountant']);
+
         // الشهر المستهدف يأتي من فلتر صفحة العمليات، مع fallback محافظ للسلوك القديم.
         $requestedMonth = request()->query('month');
         $reportMonth = preg_match('/^\d{4}-\d{2}$/', (string) $requestedMonth) === 1
@@ -54,7 +57,25 @@ class EmployeeReports
         $periodEnd = Carbon::parse($monthEnd)->endOfDay();
 
         // حسابات المديونية
-        $remainingDebt = $person->debts()->sum('amount');
+        $allDebtOperations = $person->debts()
+            ->with(['addedBy', 'store'])
+            ->orderBy('date')
+            ->orderBy('id')
+            ->get();
+        $remainingDebt = (float) $allDebtOperations->sum('amount');
+        $pendingDebt = (float) $allDebtOperations
+            ->where('status', Debt::STATUS_PENDING)
+            ->where('amount', '>', 0)
+            ->sum('amount');
+        $totalDebtAdded = (float) $allDebtOperations->where('amount', '>', 0)->sum('amount');
+        $totalDebtCollected = abs((float) $allDebtOperations->where('amount', '<', 0)->sum('amount'));
+
+        $transferHistory = $employeeProfile
+            ? $employeeProfile->logs()
+                ->where('action_name', 'employee_transferred')
+                ->orderBy('created_at')
+                ->get()
+            : collect();
 
         // نعتمد على تاريخ العملية/الشفت، وليس تاريخ الإدخال، مع fallback موحد للسجلات القديمة.
         $debtOperations = $person->debts()
@@ -137,6 +158,12 @@ class EmployeeReports
             'salary_net'           => $salaryNet,
             'debts'                => $debtOperations, // العمليات كاملة
             'remainingDebt'        => $remainingDebt,  // الرصيد النهائي
+            'pendingDebt'          => $pendingDebt,
+            'totalDebtAdded'       => $totalDebtAdded,
+            'totalDebtCollected'   => $totalDebtCollected,
+            'allDebtOperations'    => $allDebtOperations,
+            'employeeProfile'      => $employeeProfile,
+            'transferHistory'      => $transferHistory,
             'addedThisMonth'       => $addedThisMonth, // مجموع الإضافات
             'collectedThisMonth'   => abs($collectedThisMonth), // التحصيل الشهري (موجب)
             'creditSalesPending'   => $creditSalesPending,

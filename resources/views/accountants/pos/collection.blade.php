@@ -223,6 +223,11 @@
             </div>
             <p id="partialPaymentHint" class="ui-text-caption ui-text-soft">الكاش يدخل في تسليم المحاسب للمالك، والشبكة تظهر كتحصيل شبكة ضمن الحسابات.</p>
 
+            <div class="rounded-2xl border ui-border ui-input-bg p-3">
+                <label for="partialNotes" class="mb-1 block ui-text-caption ui-text-soft">ملاحظات التحصيل (اختياري)</label>
+                <textarea id="partialNotes" rows="2" maxlength="500" class="ui-input w-full rounded-xl p-2 text-sm" placeholder="أضف ملاحظة إن وجدت"></textarea>
+            </div>
+
             <div class="flex gap-2 pt-1">
                 <button type="button" data-sensitive-action="collection.partial-close" class="ui-btn ui-btn-danger flex-1 py-2 text-sm">إلغاء</button>
                 <button type="submit" class="ui-btn ui-btn-success flex-1 py-2 text-sm">تأكيد</button>

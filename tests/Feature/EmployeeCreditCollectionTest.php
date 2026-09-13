@@ -44,6 +44,7 @@ class EmployeeCreditCollectionTest extends TestCase
                 'payment_method' => 'mixed',
                 'cash_amount' => 10,
                 'card_amount' => 20,
+                'notes' => 'تحصيل الدفعة الأولى حسب الاتفاق',
             ]
         );
 
@@ -54,6 +55,7 @@ class EmployeeCreditCollectionTest extends TestCase
         $this->assertSame(10.0, (float) $payment['cash_amount']);
         $this->assertSame(20.0, (float) $payment['card_amount']);
         $this->assertSame('2026-07-18', $payment['date']);
+        $this->assertSame('تحصيل الدفعة الأولى حسب الاتفاق', $payment['notes']);
 
         $this->assertDatabaseHas('employee_credit_collections', [
             'credit_sale_id' => $creditSale->id,
@@ -72,6 +74,7 @@ class EmployeeCreditCollectionTest extends TestCase
         $this->assertSame('mixed', $log->meta['payment_method']);
         $this->assertSame(10.0, (float) $log->meta['cash_amount']);
         $this->assertSame(20.0, (float) $log->meta['card_amount']);
+        $this->assertSame('تحصيل الدفعة الأولى حسب الاتفاق', $log->meta['notes']);
     }
 
     private function fakeShiftContext(string $businessDate): void

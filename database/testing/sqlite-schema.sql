@@ -328,6 +328,7 @@ CREATE TABLE "inventory_logs" (
     "store_id" INTEGER NOT NULL,
     "user_id" INTEGER NOT NULL,
     "product_id" INTEGER NOT NULL,
+    "inventory_count_session_item_id" INTEGER DEFAULT NULL,
     "product_name_snapshot" varchar(255) DEFAULT NULL,
     "quantity_change" INTEGER NOT NULL,
     "quantity_snapshot" NUMERIC(15,4) DEFAULT NULL,
@@ -338,6 +339,31 @@ CREATE TABLE "inventory_logs" (
     "deleted_at" timestamp NULL DEFAULT NULL,
     PRIMARY KEY ("id"),
     CONSTRAINT "inventory_logs_store_id_foreign" FOREIGN KEY ("store_id") REFERENCES "stores" ("id") ON DELETE CASCADE
+);
+
+CREATE TABLE "inventory_count_sessions" (
+    "id" INTEGER NOT NULL, "store_id" INTEGER NOT NULL, "owner_id" INTEGER NOT NULL,
+    "accountant_id" INTEGER DEFAULT NULL, "status" varchar(40) NOT NULL DEFAULT 'draft',
+    "source_type" varchar(30) NOT NULL DEFAULT 'standalone', "source_id" INTEGER DEFAULT NULL,
+    "note" text DEFAULT NULL, "sent_to_accountant_at" timestamp NULL DEFAULT NULL,
+    "submitted_to_owner_at" timestamp NULL DEFAULT NULL, "approved_at" timestamp NULL DEFAULT NULL,
+    "cancelled_at" timestamp NULL DEFAULT NULL, "cancellation_reason" text DEFAULT NULL,
+    "created_at" timestamp NULL DEFAULT NULL, "updated_at" timestamp NULL DEFAULT NULL,
+    "deleted_at" timestamp NULL DEFAULT NULL, PRIMARY KEY ("id")
+);
+
+CREATE TABLE "inventory_count_session_items" (
+    "id" INTEGER NOT NULL, "inventory_count_session_id" INTEGER NOT NULL, "product_id" INTEGER NOT NULL,
+    "product_name_snapshot" varchar(255) NOT NULL, "product_description_snapshot" text DEFAULT NULL,
+    "count_type" varchar(30) NOT NULL DEFAULT 'periodic', "unit_type" varchar(20) NOT NULL DEFAULT 'unit',
+    "accountant_quantity" NUMERIC(14,3) DEFAULT NULL, "count_business_date" date DEFAULT NULL,
+    "accountant_updated_at" timestamp NULL DEFAULT NULL, "accountant_note" text DEFAULT NULL,
+    "system_quantity_snapshot" NUMERIC(14,3) DEFAULT NULL, "system_snapshot_at" timestamp NULL DEFAULT NULL,
+    "owner_quantity" NUMERIC(14,3) DEFAULT NULL, "owner_adjustment_reason" text DEFAULT NULL,
+    "decision" varchar(30) NOT NULL DEFAULT 'pending', "attempt" INTEGER NOT NULL DEFAULT 1,
+    "approved_at" timestamp NULL DEFAULT NULL, "created_at" timestamp NULL DEFAULT NULL,
+    "updated_at" timestamp NULL DEFAULT NULL, PRIMARY KEY ("id"),
+    CONSTRAINT "inventory_session_product_unique" UNIQUE ("inventory_count_session_id", "product_id")
 );
 
 CREATE TABLE "invoices" (
@@ -700,6 +726,26 @@ CREATE TABLE "store_purchase_order_items" (
     CONSTRAINT "store_purchase_order_items_store_purchase_order_id_foreign" FOREIGN KEY ("store_purchase_order_id") REFERENCES "store_purchase_orders" ("id") ON DELETE CASCADE
 );
 
+-- مرآة SQLite لجدول حدود الطلبيات المستخدم في اختبارات RefreshDatabase الموحدة.
+CREATE TABLE "purchase_order_limit_settings" (
+    "id" INTEGER NOT NULL,
+    "store_id" INTEGER DEFAULT NULL,
+    "is_global" tinyint(1) DEFAULT NULL,
+    "weekly_limit" INTEGER NOT NULL DEFAULT 4,
+    "counted_statuses" TEXT NOT NULL,
+    "exception_weekly_limit" INTEGER DEFAULT NULL,
+    "exception_expires_at" timestamp NULL DEFAULT NULL,
+    "exception_reason" text DEFAULT NULL,
+    "exception_admin_id" INTEGER DEFAULT NULL,
+    "created_at" timestamp NULL DEFAULT NULL,
+    "updated_at" timestamp NULL DEFAULT NULL,
+    PRIMARY KEY ("id"),
+    CONSTRAINT "purchase_order_limit_settings_store_id_unique" UNIQUE ("store_id"),
+    CONSTRAINT "purchase_order_limit_settings_is_global_unique" UNIQUE ("is_global"),
+    CONSTRAINT "purchase_order_limit_settings_store_id_foreign" FOREIGN KEY ("store_id") REFERENCES "stores" ("id") ON DELETE CASCADE,
+    CONSTRAINT "purchase_order_limit_settings_exception_admin_id_foreign" FOREIGN KEY ("exception_admin_id") REFERENCES "users" ("id") ON DELETE SET NULL
+);
+
 CREATE TABLE "store_purchase_orders" (
     "id" INTEGER NOT NULL,
     "store_id" INTEGER NOT NULL,
@@ -724,6 +770,10 @@ CREATE TABLE "store_purchase_orders" (
     "rejected_at" timestamp NULL DEFAULT NULL,
     "received_at" timestamp NULL DEFAULT NULL,
     "approved_at" timestamp NULL DEFAULT NULL,
+    "reversed_at" timestamp NULL DEFAULT NULL,
+    "reversed_by" INTEGER DEFAULT NULL,
+    "reversal_reason" text DEFAULT NULL,
+    "reversal_operation_id" char(36) DEFAULT NULL,
     "approved_business_date" date DEFAULT NULL,
     "cancelled_at" timestamp NULL DEFAULT NULL,
     "created_at" timestamp NULL DEFAULT NULL,
@@ -736,6 +786,8 @@ CREATE TABLE "store_purchase_orders" (
     "deleted_at" timestamp NULL DEFAULT NULL,
     PRIMARY KEY ("id"),
     CONSTRAINT "store_purchase_orders_approval_operation_id_unique" UNIQUE ("approval_operation_id"),
+    CONSTRAINT "store_purchase_orders_reversal_operation_id_unique" UNIQUE ("reversal_operation_id"),
+    CONSTRAINT "store_purchase_orders_reversed_by_foreign" FOREIGN KEY ("reversed_by") REFERENCES "users" ("id") ON DELETE SET NULL,
     CONSTRAINT "store_purchase_orders_accountant_id_foreign" FOREIGN KEY ("accountant_id") REFERENCES "accountants" ("id") ON DELETE SET NULL,
     CONSTRAINT "store_purchase_orders_store_id_foreign" FOREIGN KEY ("store_id") REFERENCES "stores" ("id") ON DELETE CASCADE,
     CONSTRAINT "store_purchase_orders_user_id_foreign" FOREIGN KEY ("user_id") REFERENCES "users" ("id") ON DELETE CASCADE

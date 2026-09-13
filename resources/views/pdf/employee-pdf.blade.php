@@ -30,12 +30,14 @@
         .footer { margin-top: 20px; font-size: 11px; text-align: center; border-top: 1px solid #d7dde5; padding-top: 8px; color: #64748b; }
         .text-cell { text-align: right; line-height: 1.6; }
         .nowrap { white-space: nowrap; }
+        .footer-note { font-size: 10px; margin-top: 3px; }
     </style>
 </head>
 <body>
 @php
     $store = $person->store;
     $owner = $store?->user;
+    $linkedAccountant = $employeeProfile?->accountant;
     // توحيد عرض تواريخ PDF كتاريخ عملية فقط بدون وقت أو عبارة تاريخ الشفت.
     $formatOperationDateOnly = function ($operationDateValue) {
         if (blank($operationDateValue)) {
@@ -109,8 +111,12 @@
             <div class="info-title">بيانات العامل</div>
             <div class="info-line"><span>الاسم:</span> {{ $person->name }}</div>
             <div class="info-line"><span>الجوال:</span> {{ $person->phone ?? '—' }}</div>
+            <div class="info-line"><span>الرقم الوظيفي:</span> {{ $employeeProfile?->id ?? $person->id }}</div>
+            <div class="info-line"><span>الحالة:</span> {{ ['active' => 'نشط', 'suspended' => 'موقوف', 'inactive' => 'غير نشط'][$employeeProfile?->status ?? $person->status ?? ''] ?? ($employeeProfile?->status ?? $person->status ?? '—') }}</div>
+            <div class="info-line"><span>تاريخ الإضافة:</span> {{ $formatOperationDateOnly($employeeProfile?->created_at ?? $person->created_at) }}</div>
             <div class="info-line"><span>راتب التقرير:</span> {{ number_format($historical_salary ?? $person->salary ?? 0, 2) }} ريال</div>
             <div class="info-line"><span>أيام التقرير:</span> {{ $salary_worked_days ?? $salary_total_days ?? '—' }} / {{ $salary_total_days ?? '—' }}</div>
+            @if(filled($employeeProfile?->notes))<div class="info-line"><span>ملاحظات الموظف:</span> {{ $employeeProfile->notes }}</div>@endif
         </td>
         <td class="center">
             <div class="brand">{{ config('app.name', 'Carled') }}</div>
@@ -128,6 +134,94 @@
         </td>
     </tr>
 </table>
+
+<h2>بيانات الوظيفة والحساب</h2>
+<table class="data">
+    <tbody>
+        <tr>
+            <th>نوع السجل</th>
+            <td>{{ $linkedAccountant ? 'موظف مرتبط بحساب محاسب' : 'موظف' }}</td>
+            <th>المتجر الحالي</th>
+            <td>{{ $employeeProfile?->store?->name ?? $store?->name ?? '—' }}</td>
+        </tr>
+        <tr>
+            <th>الراتب الحالي</th>
+            <td>{{ number_format((float) ($employeeProfile?->salary ?? $person->salary ?? 0), 2) }} ريال</td>
+            <th>حالة الموظف</th>
+            <td>{{ ['active' => 'نشط', 'suspended' => 'موقوف', 'inactive' => 'غير نشط'][$employeeProfile?->status ?? ''] ?? ($employeeProfile?->status ?? '—') }}</td>
+        </tr>
+        <tr>
+            <th>حساب المحاسب</th>
+            <td>{{ $linkedAccountant?->name ?? 'غير مرتبط' }}</td>
+            <th>حالة حساب المحاسب</th>
+            <td>{{ ['active' => 'نشط', 'suspended' => 'موقوف', 'inactive' => 'غير نشط'][$linkedAccountant?->status ?? ''] ?? ($linkedAccountant?->status ?? '—') }}</td>
+        </tr>
+        @if($linkedAccountant)
+            <tr>
+                <th>بريد المحاسب</th>
+                <td>{{ $linkedAccountant->email ?: '—' }}</td>
+                <th>جوال المحاسب</th>
+                <td>{{ $linkedAccountant->phone ?: '—' }}</td>
+            </tr>
+            @if(filled($linkedAccountant->suspension_reason))
+                <tr><th>سبب إيقاف الحساب</th><td colspan="3" class="text-cell">{{ $linkedAccountant->suspension_reason }}</td></tr>
+            @endif
+        @endif
+    </tbody>
+</table>
+
+<table class="summary">
+    <tr>
+        <td><span class="label">رصيد المديونية الحالي</span><span class="value">{{ number_format($remainingDebt ?? 0, 2) }}</span></td>
+        <td><span class="label">المديونية المفتوحة</span><span class="value">{{ number_format($pendingDebt ?? 0, 2) }}</span></td>
+        <td><span class="label">إجمالي المديونيات</span><span class="value">{{ number_format($totalDebtAdded ?? 0, 2) }}</span></td>
+        <td><span class="label">إجمالي التحصيلات</span><span class="value">{{ number_format($totalDebtCollected ?? 0, 2) }}</span></td>
+    </tr>
+</table>
+
+<h2>سجل النقل بين المتاجر</h2>
+@if($transferHistory->isNotEmpty())
+    <table class="data">
+        <thead><tr><th>#</th><th>من متجر</th><th>إلى متجر</th><th>تاريخ السريان</th><th>الرصيد الشخصي وقت النقل</th><th>التوضيح</th></tr></thead>
+        <tbody>
+        @foreach($transferHistory as $transferIndex => $transfer)
+            <tr>
+                <td>{{ $transferIndex + 1 }}</td>
+                <td>{{ data_get($transfer->meta, 'old_store_name', '—') }}</td>
+                <td>{{ data_get($transfer->meta, 'new_store_name', '—') }}</td>
+                <td class="nowrap">{{ $formatOperationDateOnly(data_get($transfer->meta, 'effective_date', $transfer->created_at)) }}</td>
+                <td>{{ number_format((float) data_get($transfer->meta, 'transferred_personal_debt_balance', 0), 2) }} ريال</td>
+                <td class="text-cell">{{ $transfer->description ?: 'نقل موثق مع إبقاء العمليات التاريخية في متجر حدوثها.' }}</td>
+            </tr>
+        @endforeach
+        </tbody>
+    </table>
+@else
+    <div class="empty-box">لا توجد عمليات نقل مسجلة لهذا الموظف.</div>
+@endif
+
+<h2>السجل الكامل للمديونيات والتحصيلات</h2>
+@if($allDebtOperations->isNotEmpty())
+    <table class="data">
+        <thead><tr><th>#</th><th>النوع</th><th>المبلغ</th><th>الحالة</th><th>التاريخ</th><th>المتجر</th><th>الملاحظات</th></tr></thead>
+        <tbody>
+        @foreach($allDebtOperations as $allDebtIndex => $allDebtOperation)
+            @php($isCollection = (float) $allDebtOperation->amount < 0)
+            <tr>
+                <td>{{ $allDebtIndex + 1 }}</td>
+                <td>{{ $isCollection ? 'تحصيل مديونية' : 'إضافة مديونية' }}</td>
+                <td class="{{ $isCollection ? 'amount-collect' : 'amount-add' }}">{{ number_format(abs((float) $allDebtOperation->amount), 2) }} ريال</td>
+                <td>{{ ['pending' => 'مفتوحة', 'deducted' => 'محصلة', 'paid' => 'مسددة'][$allDebtOperation->status] ?? $allDebtOperation->status ?? '—' }}</td>
+                <td class="nowrap">{{ $resolveOperationDateOnly($allDebtOperation) }}</td>
+                <td>{{ $allDebtOperation->store?->name ?? '—' }}</td>
+                <td class="text-cell">{{ $allDebtOperation->description ?: '—' }}</td>
+            </tr>
+        @endforeach
+        </tbody>
+    </table>
+@else
+    <div class="empty-box">لا توجد مديونيات أو تحصيلات مسجلة لهذا الموظف.</div>
+@endif
 
 <table class="summary">
     <tr>
@@ -232,6 +326,7 @@
                         - {{ $formatOperationDateOnly($collectionPayment['date'] ?? null) }}
                         - {{ $collectionPayment['added_by_name'] ?? 'غير محدد' }}
                         @if(!empty($collectionPayment['description'])) ({{ $collectionPayment['description'] }}) @endif
+                        @if(!empty($collectionPayment['notes'])) — ملاحظة: {{ $collectionPayment['notes'] }} @endif
                         @if(!$loop->last)<br>@endif
                     @empty
                         <span class="note">لا توجد تفاصيل تحصيل محفوظة</span>
@@ -252,7 +347,7 @@
 
 <div class="footer">
     <div>تم إنشاء التقرير بواسطة: CARLED</div>
-    <div style="font-size: 10px; margin-top: 3px;">هذا المستند قابل للمراجعه خلال 10 ايام من تاريخ اصدارة</div>
+    <div class="footer-note">هذا المستند قابل للمراجعة خلال 10 أيام من تاريخ إصداره</div>
 </div>
 </body>
 </html>

@@ -123,6 +123,17 @@ class ProductQuantityFormatterTest extends TestCase
         $this->assertSame('2 رول و10 متر', ProductQuantityFormatter::stockSnapshot($roll, 50));
     }
 
+    public function test_quick_sale_shortage_values_are_readable_for_a_partial_set(): void
+    {
+        $set = $this->product(['is_splittable' => true, 'items_per_unit' => 10]);
+
+        $this->assertSame('1 حبة', ProductQuantityFormatter::stockSnapshot($set, 0.1));
+        $this->assertSame('2 حبة', ProductQuantityFormatter::stockSnapshot($set, 0.2));
+
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/Cashier/QuickSaleController.php');
+        $this->assertStringContainsString('ProductQuantityFormatter::stockSnapshot($product', $controller);
+    }
+
     public function test_inventory_movement_uses_the_default_sale_unit(): void
     {
         $pieceDefault = $this->product([

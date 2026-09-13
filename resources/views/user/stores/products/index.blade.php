@@ -72,7 +72,7 @@
                 <span class="rounded-lg ui-status-warning-bg px-3 py-1.5 ui-status-warning"><b>أصفر: {{ $inventoryAuditCounts['yellow'] ?? 0 }}</b></span>
                 <span class="rounded-lg ui-status-success-bg px-3 py-1.5 ui-status-success"><b>أخضر: {{ $inventoryAuditCounts['green'] ?? 0 }}</b></span>
             </div>
-            <a href="{{ route('user.stores.products.audit', $store->id) }}" class="ui-btn ui-btn-primary mt-4"><i class="fa-solid fa-arrow-left"></i> فتح صفحة الجرد</a>
+            <a href="{{ route('user.stores.inventory-counts.index', $store->id) }}" class="ui-btn ui-btn-primary mt-4"><i class="fa-solid fa-clipboard-check" aria-hidden="true"></i> إدارة جلسات الجرد</a>
         </div>
     </details>
 
@@ -130,8 +130,8 @@
             </div>
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 <template x-for="p in visibleProducts()" :key="p.id">
-                    <button type="button" @click="openProductCard(p)"
-                        class="text-right ui-surface-muted-bg border ui-border rounded-lg px-3 py-2 transition">
+                    <div class="text-right ui-surface-muted-bg border ui-border rounded-lg px-3 py-2 transition">
+                        <button type="button" @click="openProductCard(p)" class="block w-full text-right">
                         <div class="flex items-center justify-between gap-2">
                             <div class="flex items-center gap-1.5 min-w-0">
                                 <span class="inline-flex w-2.5 h-2.5 rounded-full flex-shrink-0"
@@ -145,10 +145,19 @@
                             <p class="ui-text-caption ui-status-success font-bold" x-text="p.price_label"></p>
                             <p class="ui-text-caption ui-text-soft" x-text="p.stock_label"></p>
                         </div>
-                        <div class="mt-1 flex items-center justify-end gap-2">
+                        </button>
+                        <div class="mt-1 flex items-center justify-between gap-2">
+                            <div class="flex items-center gap-1">
+                                <a :href="p.stock_url" class="ui-btn ui-btn-secondary h-7 w-7 p-0" title="إدارة مخزون المنتج" aria-label="إدارة مخزون المنتج">
+                                    <i class="fa-solid fa-boxes-stacked ui-text-caption" aria-hidden="true"></i>
+                                </a>
+                                <a :href="p.edit_url" class="ui-btn ui-btn-secondary h-7 w-7 p-0" title="تعديل المنتج" aria-label="تعديل المنتج">
+                                    <i class="fa-solid fa-pen ui-text-caption" aria-hidden="true"></i>
+                                </a>
+                            </div>
                             <span class="ui-text-caption ui-status-success">فتح البطاقة</span>
                         </div>
-                    </button>
+                    </div>
                 </template>
             </div>
             <div x-show="filteredProducts.length === 0" class="ui-text-caption ui-status-warning p-2">
@@ -522,6 +531,8 @@
                 'search' => $product->name,
                 'highlight_product' => $product->id,
             ]),
+            'stock_url' => route('user.stores.products.stock', [$store->id, $product->id]),
+            'edit_url' => route('user.stores.products.edit', [$store->id, $product->id]),
         ];
     })->values();
 

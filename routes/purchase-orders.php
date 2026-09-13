@@ -24,6 +24,7 @@ Route::prefix('purchase-orders')->name('purchase-orders.')->group(function () {
     Route::post('/{order}/reopen', [StorePurchaseOrderController::class, 'reopen'])->name('reopen');
     Route::patch('/{order}/support-status', [StorePurchaseOrderController::class, 'supportUpdateStatus'])->name('support-status');
     Route::patch('/{order}/support-restore', [StorePurchaseOrderController::class, 'supportRestore'])->name('support-restore')->withTrashed();
+    Route::post('/{order}/support-reverse', [StorePurchaseOrderController::class, 'supportReverse'])->name('support-reverse');
     Route::delete('/{order}/support-purge', [StorePurchaseOrderController::class, 'supportPurge'])->name('support-purge')->withTrashed();
     Route::delete('/{order}', [StorePurchaseOrderController::class, 'destroy'])->name('destroy');
 });

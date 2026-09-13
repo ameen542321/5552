@@ -113,6 +113,10 @@ public function storeCollection(Request $request, $saleId)
         'payment_method' => ['nullable', 'in:cash,card,mixed'],
         'cash_amount' => ['nullable', 'numeric', 'min:0'],
         'card_amount' => ['nullable', 'numeric', 'min:0'],
+        'notes' => ['nullable', 'string', 'max:500'],
+    ], [
+        'notes.string' => 'يجب أن تكون ملاحظات التحصيل نصًا صالحًا.',
+        'notes.max' => 'يجب ألا تتجاوز ملاحظات التحصيل 500 حرف.',
     ]);
 
     $accountant = auth('accountant')->user();
@@ -151,6 +155,7 @@ public function storeCollection(Request $request, $saleId)
                 'payment_method' => $paymentMethod,
                 'cash_amount' => $cashAmount,
                 'card_amount' => $cardAmount,
+                'notes' => $validated['notes'] ?? null,
             ]
         );
     } catch (EmployeeOperationException $exception) {
@@ -163,6 +168,60 @@ public function storeCollection(Request $request, $saleId)
 
     return back()->with('success', 'تم تحصيل البيع الآجل بنجاح');
 }
+
+    public function ownerStoreCollection(Request $request, \App\Models\Store $store, CreditSale $creditSale)
+    {
+        abort_unless((int) $store->user_id === (int) auth('web')->id(), 403);
+        abort_unless((int) $creditSale->store_id === (int) $store->id, 404);
+
+        $validated = $request->validate([
+            'amount' => ['required', 'numeric', 'gt:0'],
+            'collection_date' => ['required', 'date'],
+            'payment_method' => ['required', 'in:cash,card,mixed'],
+            'cash_amount' => ['nullable', 'numeric', 'min:0'],
+            'card_amount' => ['nullable', 'numeric', 'min:0'],
+            'notes' => ['nullable', 'string', 'max:500'],
+        ], [
+            'notes.string' => 'يجب أن تكون ملاحظات التحصيل نصًا صالحًا.',
+            'notes.max' => 'يجب ألا تتجاوز ملاحظات التحصيل 500 حرف.',
+        ]);
+        $openCollectionDates = app(ShiftLifecycleService::class)->openBusinessDates($store);
+        if (! in_array($validated['collection_date'], $openCollectionDates, true)) {
+            return back()->withErrors([
+                'collection_date' => 'لا يمكن تسجيل التحصيل في هذا اليوم لأنه مقفل أو غير متاح. اختر يومًا مفتوحًا.',
+            ])->withInput();
+        }
+        $amount = (float) $validated['amount'];
+        $paymentMethod = $validated['payment_method'];
+        $cashAmount = $paymentMethod === 'card' ? 0.0 : ($paymentMethod === 'mixed' ? (float) ($validated['cash_amount'] ?? 0) : $amount);
+        $cardAmount = $paymentMethod === 'cash' ? 0.0 : ($paymentMethod === 'mixed' ? (float) ($validated['card_amount'] ?? 0) : $amount);
+
+        if ($paymentMethod === 'mixed' && abs(($cashAmount + $cardAmount) - $amount) > 0.01) {
+            return back()->withErrors(['amount' => 'يجب أن يساوي مجموع الكاش والشبكة مبلغ التحصيل.']);
+        }
+
+        try {
+            app(EmployeeOperationService::class)->collectCreditSale(
+                $creditSale,
+                $amount,
+                app(EmployeeOperationService::class)->actorFromCurrentAuth(),
+                [
+                    // التاريخ الذي اختاره المالك هو تاريخ تسجيل التحصيل، حتى للآجل القديم.
+                    'date' => $validated['collection_date'],
+                    'require_open_business_date' => true,
+                    'payment_method' => $paymentMethod,
+                    'cash_amount' => $cashAmount,
+                    'card_amount' => $cardAmount,
+                    'notes' => $validated['notes'] ?? null,
+                    'full' => abs($amount - (float) $creditSale->remaining_amount) <= 0.01,
+                ]
+            );
+        } catch (EmployeeOperationException $exception) {
+            return back()->with('error', $exception->getMessage());
+        }
+
+        return back()->with('success', 'تم تحصيل مبلغ الآجل وتسجيله بتاريخ '.$validated['collection_date'].'.');
+    }
 
 
 

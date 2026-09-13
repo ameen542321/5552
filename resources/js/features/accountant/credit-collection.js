@@ -4,6 +4,12 @@ const root = document.querySelector('[data-credit-collection-config]');
 if (root) {
     const config = JSON.parse(root.dataset.creditCollectionConfig || '{}');
     const allSales = config.sales || {};
+    const salesById = Object.values(allSales)
+        .flatMap((sales) => Array.isArray(sales) ? sales : [])
+        .reduce((index, sale) => {
+            index[String(sale.id)] = sale;
+            return index;
+        }, {});
 
     function escapeHtml(value) {
         const div = document.createElement('div');
@@ -61,7 +67,7 @@ if (root) {
                     <div class="ui-text-soft ui-text-meta mb-2">${amountLabel}: <span class="ui-status-warning font-bold">${shownAmount} ريال</span></div>
                     <div class="flex gap-1.5">
                         <!-- تُقرأ بيانات العملية من الوحدة المركزية بدل إنشاء onclick داخل القالب الديناميكي. -->
-                        <button type="button" data-sensitive-action="collection.preview" data-sale="${escapeHtml(JSON.stringify(sale))}"
+                        <button type="button" data-sensitive-action="collection.preview" data-sale-id="${sale.id}"
                                 class="flex-1 ui-btn ui-btn-info text-sm py-2 rounded-lg">
                             معاينة
                         </button>
@@ -138,7 +144,7 @@ if (root) {
         // تاريخ التحصيل مستقل عن تاريخ العملية الأصلية ويظهر داخل كل حركة محفوظة.
         return payments.map(payment => `
             <div class="flex items-center justify-between border-b ui-border py-1.5 last:border-0">
-                <div class="ui-text-soft ui-text-caption">${escapeHtml(payment.description || 'تحصيل آجل')}<div class="ui-text-muted ui-text-caption">تاريخ التحصيل: ${escapeHtml(payment.date || '-')} - ${escapeHtml(payment.added_by_name || 'غير محدد')} - ${escapeHtml(payment.payment_method_label || 'كاش')}</div></div>
+                <div class="ui-text-soft ui-text-caption">${escapeHtml(payment.description || 'تحصيل آجل')}<div class="ui-text-muted ui-text-caption">تاريخ التحصيل: ${escapeHtml(payment.date || '-')} - ${escapeHtml(payment.added_by_name || 'غير محدد')} - ${escapeHtml(payment.payment_method_label || 'كاش')}</div>${payment.notes ? `<div class="ui-text-muted ui-text-caption mt-1">ملاحظة: ${escapeHtml(payment.notes)}</div>` : ''}</div>
                 <div class="text-left"><div class="ui-status-success font-bold ui-text-caption">${money(payment.amount)}</div><div class="ui-text-muted ui-text-caption">كاش ${money(payment.cash_amount || 0)} / شبكة ${money(payment.card_amount || 0)}</div></div>
             </div>
         `).join('');
@@ -155,7 +161,15 @@ if (root) {
             `).join('');
     }
 
-    function openPreviewModal(sale) {
+    function openPreviewModal(saleId) {
+        const sale = typeof saleId === 'object' && saleId !== null
+            ? saleId
+            : salesById[String(saleId)];
+        if (!sale) {
+            showCollectionToast('error', 'تعذر العثور على بيانات عملية الأجل.');
+            return;
+        }
+
         document.getElementById('collectionModal')?.classList.add('ui-modal-suspended');
         const linked = sale.linked_sale || null;
         const mixedTotal = linked ? Number(linked.cash_amount || 0) + Number(linked.card_amount || 0) : 0;
@@ -163,7 +177,15 @@ if (root) {
         const collectedAmount = Math.max(0, creditAmount - Number(sale.remaining_amount || 0));
 
         // تاريخ العملية يعرض أولًا، بينما تواريخ التحصيلات تظهر في سجلها المستقل أدناه.
-        document.getElementById('previewContent').innerHTML = `
+        const previewContent = document.getElementById('previewContent');
+        const previewModal = document.getElementById('previewModal');
+        if (!previewContent || !previewModal) {
+            document.getElementById('collectionModal')?.classList.remove('ui-modal-suspended');
+            showCollectionToast('error', 'تعذر فتح نافذة المعاينة.');
+            return;
+        }
+
+        previewContent.innerHTML = `
             <div class="ui-card-muted p-3 space-y-2">
                 <div class="flex items-center justify-between gap-2">
                     <div class="ui-title text-sm font-bold">${escapeHtml(sale.credit_note || 'أجل بدون ملاحظة')}</div>
@@ -209,7 +231,7 @@ if (root) {
             </div>
         `;
 
-        document.getElementById('previewModal').classList.remove('hidden');
+        previewModal.classList.remove('hidden');
     }
 
     function closePreviewModal() {
@@ -297,6 +319,10 @@ if (root) {
                             </div>
                         </div>
                         <p class="ui-text-caption ui-text-soft">الكاش يدخل في تسليم المحاسب للمالك، والشبكة تظهر كتحصيل شبكة ضمن الحسابات.</p>
+                        <div class="rounded-2xl border ui-border ui-input-bg p-3">
+                            <label for="collectionNotes" class="mb-1 block ui-text-caption ui-text-soft">ملاحظات التحصيل (اختياري)</label>
+                            <textarea id="collectionNotes" rows="2" maxlength="500" class="w-full rounded-xl border ui-border ui-input-bg p-2 ui-title" placeholder="أضف ملاحظة إن وجدت"></textarea>
+                        </div>
                     </div>
                 `,
                 confirmButtonText: 'متابعة',
@@ -356,7 +382,8 @@ if (root) {
                         Swal.showValidationMessage('في الميكس يجب أن يساوي مجموع الكاش والشبكة مبلغ التحصيل.');
                         return false;
                     }
-                    return { payment_method: method, cash_amount: cash.toFixed(2), card_amount: card.toFixed(2) };
+                    const notes = String(document.getElementById('collectionNotes')?.value || '').trim();
+                    return { payment_method: method, cash_amount: cash.toFixed(2), card_amount: card.toFixed(2), notes };
                 },
             });
 
@@ -429,8 +456,10 @@ if (root) {
             const cashInput = document.getElementById('partialCashAmount');
             const cardInput = document.getElementById('partialCardAmount');
             const paymentHint = document.getElementById('partialPaymentHint');
+            const notesInput = document.getElementById('partialNotes');
             const paymentButtons = Array.from(document.querySelectorAll('[data-partial-payment-method]'));
             amountInput.value = '';
+            if (notesInput) notesInput.value = '';
             const maximumAmount = Number(maxAmount || 0);
             amountInput.max = maximumAmount.toFixed(2);
             const amountLimit = document.getElementById('partialAmountLimit');
@@ -510,6 +539,7 @@ if (root) {
                     payment_method: method,
                     cash_amount: cash.toFixed(2),
                     card_amount: card.toFixed(2),
+                    notes: String(notesInput?.value || '').trim(),
                 }, form.querySelector('button[type="submit"]'));
             };
 

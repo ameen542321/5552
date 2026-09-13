@@ -17,6 +17,48 @@ class InternalUseControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_accountant_internal_use_page_exposes_the_product_default_sale_unit(): void
+    {
+        $owner = User::factory()->create([
+            'status' => 'active',
+            'welcome_shown' => true,
+            'subscription_end_at' => now()->addDays(30),
+        ]);
+        $store = Store::factory()->create(['user_id' => $owner->id, 'status' => 'active']);
+        $employee = Employee::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'name' => 'Internal use employee',
+            'phone' => '0500000099',
+            'salary' => 1000,
+            'status' => 'active',
+        ]);
+        $accountant = Accountant::create([
+            'user_id' => $owner->id,
+            'store_id' => $store->id,
+            'employee_id' => $employee->id,
+            'name' => 'Internal Use Accountant',
+            'email' => 'internal-use-default@example.com',
+            'phone' => '0500000098',
+            'password' => 'password',
+            'status' => 'active',
+        ]);
+        Product::factory()->create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'status' => 'active',
+            'product_type' => 'standard',
+            'is_splittable' => true,
+            'items_per_unit' => 4,
+            'quick_sale_default_unit' => 'piece',
+        ]);
+
+        $this->actingAs($accountant, 'accountant')
+            ->get(route('accountant.internal-use.create'))
+            ->assertOk()
+            ->assertSee('&quot;quick_sale_default_unit&quot;:&quot;piece&quot;', false);
+    }
+
     public function test_owner_purchase_create_and_update_use_explicit_business_date(): void
     {
         $owner = User::factory()->create([

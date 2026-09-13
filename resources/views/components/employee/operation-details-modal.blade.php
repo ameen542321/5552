@@ -35,6 +35,8 @@
                         $isOutsideCurrentMonth = \Carbon\Carbon::parse($linkedSaleDate)->format('Y-m') !== now()->format('Y-m');
                         $isLinkedShiftClosed = $linkedSale && !empty($linkedSale->daily_balance_id);
                         $closedShiftWarning = 'تنبيه: العملية مرتبطة بشفت مغلق، وقد يؤدي التعديل أو الحذف إلى فروقات حسابية في التقارير السابقة.';
+                        $isHistoricalStoreOperation = (bool) ($row->is_historical_store_operation ?? false);
+                        $rowOpenCreditCollectionDates = $openCreditCollectionDatesByStore[(int) $row->store_id] ?? ($openCreditCollectionDates ?? []);
                     @endphp
 
                     <details class="group ui-disclosure rounded-2xl ui-border ui-surface-muted-bg">
@@ -49,6 +51,9 @@
                                     <p class="ui-status-info font-bold">{{ number_format($displayAmount, 2) }} ريال</p>
                                 </div>
                                 <div class="ui-text-soft text-sm">{{ $rowDate }}</div>
+                                @if($isHistoricalStoreOperation)
+                                    <div class="ui-badge ui-badge-warning">{{ $row->operation_store_name }} — بيان تاريخي غير محتسب في المتجر الحالي</div>
+                                @endif
                             </div>
                         </summary>
 
@@ -145,11 +150,68 @@
                                                 <span class="ui-status-success">{{ number_format((float) ($payment['amount'] ?? 0), 2) }} ريال</span>
                                                 <span class="ui-text-soft">{{ isset($payment['date']) ? \Carbon\Carbon::parse($payment['date'])->format('Y-m-d') : '-' }}</span>
                                                 <span class="ui-text-muted">المحصل: {{ $payment['added_by_name'] ?? 'غير محدد' }}</span>
+                                                @if(!empty($payment['notes']))
+                                                    <span class="w-full ui-text-caption ui-text-muted">ملاحظة: {{ $payment['notes'] }}</span>
+                                                @endif
                                             </div>
                                         @endforeach
                                     </div>
                                 @endif
                             </div>
+
+                            @if((float) ($row->remaining_amount ?? 0) > 0 && !empty($row->store_id))
+                                @php
+                                    $ownerCollectionFormId = 'owner-credit-collection-form-'.$row->id;
+                                    $ownerCollectionPreviewId = 'owner-credit-collection-preview-'.$row->id;
+                                @endphp
+                                <form id="{{ $ownerCollectionFormId }}" method="POST" action="{{ route('user.stores.credit-sales.collect', [$row->store_id, $row->id]) }}" class="ui-card p-4 space-y-3">
+                                    @csrf
+                                    <div class="flex items-center gap-2">
+                                        <h3 class="ui-title font-bold">تحصيل الآجل</h3>
+                                        <x-ui.help title="تحصيل الآجل" body="يمكن تحصيل عملية من شهر سابق، لكن لا يمكن تسجيل التحصيل في يوم أُقفل شفته. التاريخ المختار يظهر في الحسابات والتقارير." />
+                                    </div>
+                                    <div class="grid grid-cols-1 gap-3">
+                                        <label class="block"><span class="ui-label">المبلغ المحصل</span><input class="ui-input" type="number" name="amount" min="0.01" max="{{ (float) $row->remaining_amount }}" step="0.01" value="{{ (float) $row->remaining_amount }}" required></label>
+                                        <label class="block">
+                                            <span class="ui-label">تاريخ التحصيل</span>
+                                            <select class="ui-input" name="collection_date" required>
+                                                @foreach($rowOpenCreditCollectionDates as $openCollectionDate)
+                                                    <option value="{{ $openCollectionDate }}" @selected(old('collection_date', last($rowOpenCreditCollectionDates)) === $openCollectionDate)>{{ $openCollectionDate }}</option>
+                                                @endforeach
+                                            </select>
+                                        </label>
+                                        <label class="block"><span class="ui-label">طريقة التحصيل</span><select class="ui-input" name="payment_method" required><option value="cash">كاش</option><option value="card">شبكة</option><option value="mixed">ميكس</option></select></label>
+                                        <label class="block"><span class="ui-label">مبلغ الكاش عند اختيار ميكس</span><input class="ui-input" type="number" name="cash_amount" min="0" step="0.01" placeholder="0.00"></label>
+                                        <label class="block"><span class="ui-label">مبلغ الشبكة عند اختيار ميكس</span><input class="ui-input" type="number" name="card_amount" min="0" step="0.01" placeholder="0.00"></label>
+                                        <label class="block"><span class="ui-label">ملاحظات التحصيل (اختياري)</span><textarea class="ui-input" name="notes" rows="2" maxlength="500" placeholder="أضف ملاحظة إن وجدت"></textarea></label>
+                                    </div>
+                                    <button class="ui-btn ui-btn-info" type="button"
+                                            data-owner-credit-preview
+                                            data-form-id="{{ $ownerCollectionFormId }}"
+                                            data-modal-id="{{ $ownerCollectionPreviewId }}">معاينة التحصيل</button>
+                                </form>
+
+                                <div id="{{ $ownerCollectionPreviewId }}" class="ui-modal-backdrop hidden">
+                                    <div class="ui-modal-panel">
+                                        <div class="ui-modal-header">
+                                            <h3 class="ui-title font-bold">مراجعة التحصيل قبل التسجيل</h3>
+                                            <button type="button" data-ui-hide="{{ $ownerCollectionPreviewId }}" class="ui-modal-close-danger" aria-label="إغلاق">×</button>
+                                        </div>
+                                        <div class="p-4 space-y-3">
+                                            <div class="ui-card-muted p-3"><span class="ui-text-muted">العملية:</span> <strong class="ui-title">{{ $operationName }}</strong></div>
+                                            <div class="ui-card-muted p-3"><span class="ui-text-muted">المبلغ:</span> <strong class="ui-status-success" data-owner-credit-preview-value="amount">—</strong></div>
+                                            <div class="ui-card-muted p-3"><span class="ui-text-muted">التاريخ:</span> <strong class="ui-title" data-owner-credit-preview-value="date">—</strong></div>
+                                            <div class="ui-card-muted p-3"><span class="ui-text-muted">طريقة التحصيل:</span> <strong class="ui-title" data-owner-credit-preview-value="method">—</strong></div>
+                                            <div class="ui-card-muted p-3 hidden" data-owner-credit-preview-mixed><span class="ui-text-muted">توزيع الميكس:</span> <strong class="ui-title" data-owner-credit-preview-value="mixed">—</strong></div>
+                                            <div class="ui-card-muted p-3 hidden" data-owner-credit-preview-notes><span class="ui-text-muted">الملاحظات:</span> <strong class="ui-title" data-owner-credit-preview-value="notes">—</strong></div>
+                                            <div class="flex flex-wrap gap-2">
+                                                <button class="ui-btn ui-btn-success" type="submit" form="{{ $ownerCollectionFormId }}">تأكيد وتسجيل التحصيل</button>
+                                                <button class="ui-btn ui-btn-danger" type="button" data-ui-hide="{{ $ownerCollectionPreviewId }}">رجوع</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endif
 
                             @if($linkedSaleId && !empty($row->store_id))
                                 <div class="flex flex-wrap gap-2 justify-end">
@@ -163,7 +225,7 @@
                                         تعديل العملية
                                     </a>
                                     @if($isOutsideCurrentMonth)
-                                        <p class="w-full ui-text-caption ui-status-warning text-left md:text-right">هذه العملية من شهر سابق؛ التعديل سيفتح العملية لتغيير الموظف فقط، أما الحذف فيبقى ظاهرًا مع تنبيه حذف الأجل المرتبط.</p>
+                                        <p class="w-full ui-text-caption ui-status-warning text-left md:text-right">هذه العملية من شهر سابق؛ يمكن تحصيلها الآن، أما تعديل العملية فيقتصر على تغيير الموظف.</p>
                                     @endif
                                     <form method="POST"
                                           action="{{ route('user.stores.daily.destroy', [$row->store_id, $linkedSaleId, 'return_to' => request()->fullUrl()]) }}"
@@ -223,10 +285,16 @@
 
                                         @case('date')
                                             {{ optional($row->date)->format('Y-m-d') ?? $row->date ?? optional($row->created_at)->format('Y-m-d') ?? '-' }}
+                                            @if($row->is_historical_store_operation ?? false)
+                                                <span class="block ui-text-caption ui-status-warning mt-1">{{ $row->operation_store_name }} — بيان تاريخي غير محتسب هنا</span>
+                                            @endif
                                             @break
 
                                         @case('accounting_date')
                                             {{ $row->accounting_date_display ?? '-' }}
+                                            @if($row->is_historical_store_operation ?? false)
+                                                <span class="block ui-text-caption ui-status-warning mt-1">{{ $row->operation_store_name }} — بيان تاريخي غير محتسب هنا</span>
+                                            @endif
                                             @break
 
                                         @case('added_by')
@@ -243,7 +311,7 @@
                                                         تعديل
                                                     </a>
                                                     @if($isOutsideCurrentMonth)
-                                                        <span class="w-full ui-text-caption ui-status-warning">عملية من شهر سابق: التعديل للموظف فقط، والحذف ظاهر مع تنبيه حذف الأجل المرتبط.</span>
+                                                        <span class="w-full ui-text-caption ui-status-warning">عملية من شهر سابق: التحصيل متاح، والتعديل يقتصر على تغيير الموظف.</span>
                                                     @endif
                                                     <form method="POST"
                                                           action="{{ route('user.stores.daily.destroy', [$row->store_id, $linkedSaleId, 'return_to' => request()->fullUrl()]) }}"

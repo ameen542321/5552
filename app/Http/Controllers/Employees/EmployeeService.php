@@ -8,6 +8,8 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use App\Services\EmployeeLogService;
 use App\Services\Employees\EmployeeHistoricalStoreService;
+use App\Services\Employees\EmployeeAccountantLifecycleService;
+use App\Services\Employees\EmployeeTransferService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Carbon;
@@ -193,27 +195,11 @@ class EmployeeService
                 $newStore = $employee->store;
 
                 if ($oldStore && $newStore) {
-                    self::transferEmployeeFinancialRecordsToStore($employee, (int) $employee->store_id, true);
-                    $transferLog = EmployeeLogService::add(
+                    app(EmployeeTransferService::class)->finalizeMovedEmployee(
                         $employee,
-                        'employee_transferred',
-                        "تم نقل الموظف من متجر {$oldStore->name} إلى متجر {$newStore->name}. تم نقل المديونيات فقط، وبقيت سجلات السحب والغياب والرواتب في متجرها الأصلي لحفظ تقارير الفترات السابقة. إذا كان للموظف حساب محاسب فعال فقد تم إيقافه بعد النقل حتى تتم مراجعته.",
-                        null,
-                        [
-                            'old_store_id' => $oldStore->id,
-                            'old_store_name' => $oldStore->name,
-                            'new_store_id' => $newStore->id,
-                            'new_store_name' => $newStore->name,
-                            'effective_date' => $transferEffectiveDate?->toDateString(),
-                            'current_month_records_only' => false,
-                            'financial_records_follow_operation_store' => true,
-                            'active_accountant_suspended' => true,
-                        ]
+                        $oldStore,
+                        $transferEffectiveDate,
                     );
-
-                    if ($transferLog && $transferEffectiveDate) {
-                        $transferLog->forceFill(['created_at' => $transferEffectiveDate])->save();
-                    }
                 }
             }
 
@@ -295,63 +281,18 @@ class EmployeeService
     }
 
     /**
-     * نقل السجلات المالية واليومية التابعة للموظف إلى متجره الجديد دون نقل المبيعات التشغيلية القديمة.
+     * ينقل انتماء حساب المحاسب فقط؛ تبقى كل عملية تاريخية في متجر حدوثها.
      */
     public static function transferEmployeeFinancialRecordsToStore(Employee $employee, int $newStoreId, bool $suspendActiveAccountant = false): void
     {
-        $accountantUpdate = ['store_id' => $newStoreId];
-
-        if ($suspendActiveAccountant) {
-            $accountantUpdate['status'] = 'suspended';
+        if ((int) $employee->store_id !== $newStoreId) {
+            $employee->setAttribute('store_id', $newStoreId);
+            $employee->setRelation('store', Store::findOrFail($newStoreId));
         }
 
         if ($suspendActiveAccountant) {
-            $employee->accountant()->withTrashed()
-                ->where('status', 'active')
-                ->update(['status' => 'suspended']);
-        } else {
-            $employee->accountant()->withTrashed()->update($accountantUpdate);
+            app(EmployeeAccountantLifecycleService::class)->suspendAfterTransfer($employee);
         }
-
-        // تنتقل ملكية سجل الموظف الكامل إلى المتجر الجديد حتى لا يفقد ديونه أو سحوباته عند حذف المتجر السابق.
-        foreach ([
-            'debts',
-            'employee_withdrawals',
-            'employee_absences',
-            'credit_sales',
-            'employee_credit_collections',
-            'employee_salary_reports',
-            'employee_logs',
-        ] as $table) {
-            self::moveEmployeeStoreRows($table, $employee->id, $newStoreId);
-        }
-    }
-
-    /**
-     * نقل السجلات الحديثة المبنية على person_id والسجلات القديمة المبنية على employee_id.
-     */
-    private static function moveEmployeeStoreRows(string $table, int $employeeId, int $newStoreId): void
-    {
-        if (! \Illuminate\Support\Facades\Schema::hasTable($table)
-            || ! \Illuminate\Support\Facades\Schema::hasColumn($table, 'store_id')) {
-            return;
-        }
-
-        $query = DB::table($table);
-
-        if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'person_id')) {
-            $query->where('person_id', $employeeId);
-
-            if (\Illuminate\Support\Facades\Schema::hasColumn($table, 'person_type')) {
-                $query->where('person_type', Employee::class);
-            }
-        } elseif (\Illuminate\Support\Facades\Schema::hasColumn($table, 'employee_id')) {
-            $query->where('employee_id', $employeeId);
-        } else {
-            return;
-        }
-
-        $query->update(['store_id' => $newStoreId]);
     }
 
 

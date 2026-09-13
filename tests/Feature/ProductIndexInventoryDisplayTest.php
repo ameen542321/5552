@@ -128,5 +128,9 @@ class ProductIndexInventoryDisplayTest extends TestCase
         $response->assertSeeText('لا يوجد جرد');
         $response->assertDontSeeText('منتج مطابق للبحث');
         $response->assertDontSeeText('آخر بيع:');
+        $response->assertSee('p.stock_url', false);
+        $response->assertSee('p.edit_url', false);
+        $response->assertSee('aria-label="إدارة مخزون المنتج"', false);
+        $response->assertSee('aria-label="تعديل المنتج"', false);
     }
 }

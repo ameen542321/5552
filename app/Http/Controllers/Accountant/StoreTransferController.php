@@ -44,13 +44,14 @@ class StoreTransferController extends Controller
             ->paginate(10, ['*'], 'outgoing_completed_page');
 
         $receiverProducts = Product::where('store_id', $storeId)
+            ->sellable()
             ->orderBy('name')
             ->get(['id', 'name', 'quantity', 'barcode', 'category_id']);
 
         $incoming->getCollection()->each(function (StoreTransfer $transfer) use ($receiverProducts) {
-            $transfer->items->each(function ($item) use ($receiverProducts, $transfer) {
-                $suggestions = $this->transfers->suggestReceiverProducts($item, $transfer->receiver_store_id);
-                $item->setRelation('receiverSuggestions', $suggestions->isNotEmpty() ? $suggestions : $receiverProducts->take(8));
+            $transfer->items->each(function ($item) use ($receiverProducts) {
+                // لا نحصر البحث في تطابق الاسم أو أول ثمانية منتجات.
+                $item->setRelation('receiverSuggestions', $receiverProducts);
             });
         });
 

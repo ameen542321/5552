@@ -9,12 +9,141 @@ use App\Models\Store;
 use App\Models\User;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrder;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrderItem;
+use App\Services\ShiftLifecycleService;
+use Carbon\Carbon;
 use Tests\Concerns\RefreshDatabase;
 use Tests\TestCase;
 
 class PurchaseOrderInventoryReviewSecurityTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_unclosed_previous_business_date_is_available_for_inventory_approval(): void
+    {
+        Carbon::setTestNow('2026-08-28 12:00:00');
+        [$owner, $store] = $this->ownerStoreAndAccountant();
+        $store->forceFill(['created_at' => Carbon::parse('2026-08-20')])->saveQuietly();
+
+        $this->assertContains('2026-08-21', app(ShiftLifecycleService::class)->openBusinessDates($store));
+
+        $order = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'status' => 'received',
+            'workflow_status' => 'pending_inventory_approval',
+            'received_at' => now(),
+        ]);
+        StorePurchaseOrderItem::create([
+            'store_purchase_order_id' => $order->id,
+            'custom_product_name' => 'مشتريات مالك مؤجلة',
+            'quantity_requested' => 1,
+            'quantity_received' => 1,
+            'unit_type' => 'unit',
+            'cost_price_at_order' => 10,
+            'cost_price_at_receipt' => 10,
+            'add_to_owner_purchases' => true,
+        ]);
+
+        $this->actingAs($owner)
+            ->get(route('user.stores.purchase-orders.show', [$store, $order]))
+            ->assertOk()
+            ->assertSee('value="2026-08-21"', false)
+            ->assertSee('لم يكتمل إغلاقه');
+
+        $this->actingAs($owner)->post(route('user.stores.purchase-orders.approve', [$store, $order]), [
+            'business_date' => '2026-08-21',
+        ])->assertRedirect(route('user.stores.purchase-orders.index', $store));
+
+        $approvedOrder = $order->fresh();
+        $this->assertSame('approved', $approvedOrder->status);
+        $this->assertSame('2026-08-21', $approvedOrder->approved_business_date?->format('Y-m-d'));
+        Carbon::setTestNow();
+    }
+
+    public function test_owner_comprehensive_search_finds_an_order_by_custom_product_name(): void
+    {
+        [$owner, $store] = $this->ownerStoreAndAccountant();
+        $matching = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'supplier_name' => 'مورد أول',
+            'status' => 'draft',
+            'workflow_status' => 'pending_owner_review',
+        ]);
+        StorePurchaseOrderItem::create([
+            'store_purchase_order_id' => $matching->id,
+            'custom_product_name' => 'منتج بحث شامل مميز',
+            'quantity_requested' => 1,
+            'unit_type' => 'unit',
+        ]);
+        StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'supplier_name' => 'مورد غير مطابق',
+            'status' => 'draft',
+            'workflow_status' => 'pending_owner_review',
+        ]);
+
+        $this->actingAs($owner)->get(route('user.stores.purchase-orders.index', [$store, 'search' => 'بحث شامل مميز']))
+            ->assertOk()
+            ->assertSee($matching->referenceCode())
+            ->assertDontSee('مورد غير مطابق');
+    }
+
+    public function test_owner_comprehensive_search_accepts_the_full_visible_order_reference(): void
+    {
+        [$owner, $store] = $this->ownerStoreAndAccountant();
+        $matching = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'supplier_name' => 'مورد المرجع الكامل',
+            'status' => 'draft',
+            'workflow_status' => 'pending_owner_review',
+        ]);
+
+        $this->actingAs($owner)->get(route('user.stores.purchase-orders.index', [
+            $store,
+            'search' => $matching->referenceCode(),
+        ]))->assertOk()->assertSee('مورد المرجع الكامل');
+    }
+
+    public function test_owner_show_displays_stage_tasks_sections_and_financial_summary_before_approval(): void
+    {
+        [$owner, $store] = $this->ownerStoreAndAccountant();
+        $order = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'supplier_name' => 'مورد الملخص',
+            'status' => 'received',
+            'workflow_status' => 'pending_inventory_approval',
+            'received_at' => now(),
+        ]);
+        StorePurchaseOrderItem::create([
+            'store_purchase_order_id' => $order->id,
+            'custom_product_name' => 'منتج الملخص',
+            'quantity_requested' => 2,
+            'quantity_received' => 2,
+            'unit_type' => 'unit',
+            'cost_price_at_order' => 20,
+            'cost_price_at_receipt' => 24,
+            'add_to_owner_purchases' => true,
+        ]);
+
+        $this->actingAs($owner)->get(route('user.stores.purchase-orders.show', [$store, $order]))
+            ->assertOk()
+            ->assertSee('مراحل الطلبية')
+            ->assertSee('مهمتك الآن')
+            ->assertSee('مهام المالك')
+            ->assertSee('aria-current="step"', false)
+            ->assertSee('قرار المالك')
+            ->assertSee('قبل وبعد الاستلام')
+            ->assertSee('data-receipt-filter="attention"', false)
+            ->assertSee('ui-context-action-dock', false)
+            ->assertSee('الملخص المالي قبل الاعتماد')
+            ->assertSee('اعتماد وإضافة 0 منتج للمخزون')
+            ->assertSee('24.00 ر.س')
+            ->assertSee('4.00 ر.س');
+    }
 
     public function test_accountant_create_page_does_not_render_stock_or_cost_values(): void
     {
@@ -34,6 +163,10 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->get(route('accountant.purchase-orders.create'));
 
         $response->assertOk();
+        $response->assertSee('خطوات تجهيز الطلبية');
+        $response->assertSee('عدد البنود');
+        $response->assertSee('بنود ناقصة');
+        $response->assertSee('لم تضف أي بند بعد');
 
         $decodedHtml = html_entity_decode($response->getContent(), ENT_QUOTES | ENT_HTML5);
         $this->assertStringContainsString(
@@ -339,6 +472,7 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->get(route('accountant.purchase-orders.show', $order))
             ->assertOk()
             ->assertSee('المرحلة الحالية:', false)
+            ->assertSee('مهام المحاسب', false)
             ->assertSee('الطقم الواحد يساوي 10 حبة.', false)
             ->assertSee('name="items['.$item->id.'][quantity_received]" value="2"', false)
             ->assertSee('name="items['.$item->id.'][cost_price_at_receipt]" value="200"', false)
@@ -365,7 +499,25 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
             ->assertDontSee('المحاسب<br><strong class="ui-title">غير محدد', false);
     }
 
-    public function test_opening_a_returned_order_flashes_its_arabic_status_and_note(): void
+    public function test_accountant_without_a_current_task_does_not_see_the_task_navigation_button(): void
+    {
+        [$owner, $store, $accountant] = $this->ownerStoreAndAccountant();
+        $order = StorePurchaseOrder::create([
+            'store_id' => $store->id,
+            'user_id' => $owner->id,
+            'accountant_id' => $accountant->id,
+            'status' => 'approved',
+            'workflow_status' => 'approved_and_supplied',
+        ]);
+
+        $this->actingAs($accountant, 'accountant')
+            ->get(route('accountant.purchase-orders.show', $order))
+            ->assertOk()
+            ->assertSee('لا يوجد إجراء مطلوب منك الآن')
+            ->assertDontSee('انتقل إلى المهمة');
+    }
+
+    public function test_opening_a_returned_order_shows_a_fixed_arabic_status_and_note(): void
     {
         [$owner, $store] = $this->ownerStoreAndAccountant();
         $order = StorePurchaseOrder::create([
@@ -380,7 +532,13 @@ class PurchaseOrderInventoryReviewSecurityTest extends TestCase
         $this->actingAs($owner)
             ->get(route('user.stores.purchase-orders.show', [$store, $order]))
             ->assertOk()
-            ->assertSee('حالة الطلبية: معادة للتعديل — عدّل كمية المنتج', false);
+            ->assertSee('حالة الطلبية:')
+            ->assertSee('معادة للتعديل')
+            ->assertSee('أعاد المالك الطلبية إلى المحاسب لتعديل البنود.')
+            ->assertSee('ملاحظة المالك:')
+            ->assertSee('عدّل كمية المنتج')
+            ->assertSee('الإرسال متوقف حتى ينهي المحاسب تعديل البنود المطلوبة')
+            ->assertDontSee('الإرسال متوقف حتى اعتماد الجرد');
     }
 
     public function test_owner_sees_inventory_difference_but_accountant_show_page_does_not(): void

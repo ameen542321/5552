@@ -65,15 +65,89 @@
     $receiptReviewVarianceCount = $receiptReviewItems->filter(fn ($item) => abs((float) $item->price_variance) > 0.01)->count();
     $receiptReviewUnresolvedCount = $receiptReviewItems->filter(fn ($item) => ! $item->product_id && ! $item->matched_product_id && ! $item->add_to_owner_purchases)->count();
     $receiptReviewOwnerPurchaseCount = $receiptReviewItems->where('add_to_owner_purchases', true)->count();
+    $receiptReviewAttentionCount = $receiptReviewItems->filter(function ($item) use ($accountantReceiptChanges): bool {
+        return $accountantReceiptChanges->has((string) $item->id)
+            || abs((float) $item->price_variance) > 0.01
+            || (! $item->product_id && ! $item->matched_product_id && ! $item->add_to_owner_purchases)
+            || (bool) $item->add_to_owner_purchases;
+    })->count();
+    $receiptReviewReady = $receiptReviewUnresolvedCount === 0;
     $latestCountApprovalEvent = $order->events
         ->where('event', 'count_approved')
         ->sortByDesc('created_at')
         ->first();
+    // بيانات عرض فقط لبناء شريط المرحلة وصندوق المهمة والملخص المالي دون تعديل أي قيمة محفوظة.
+    $stageSteps = [
+        ['label' => 'المراجعة', 'anchor' => 'order-overview'],
+        ['label' => 'الإرسال', 'anchor' => 'order-actions'],
+        ['label' => 'الاستلام', 'anchor' => 'receipt-review'],
+        ['label' => 'الاعتماد', 'anchor' => 'inventory-approval'],
+    ];
+    $currentStageIndex = match ($order->status) {
+        'draft' => 0,
+        'sent' => 1,
+        'received' => 2,
+        'approved' => 3,
+        default => -1,
+    };
+    $taskTitle = 'متابعة حالة الطلبية';
+    $taskBody = 'لا يوجد إجراء مطلوب منك الآن؛ راقب المرحلة الحالية وسجل الأحداث.';
+    $taskAnchor = 'order-overview';
+    $hasCurrentTask = false;
+    if ($isAccountantContext) {
+        if (in_array($order->inventory_review_status, ['returned_to_accountant', 'count_draft'], true)) {
+            $taskTitle = 'أكمل جرد المنتجات المطلوبة';
+            $taskBody = 'أدخل الكميات الفعلية ثم أرسل نتيجة الجرد إلى المالك.';
+            $taskAnchor = 'order-actions';
+            $hasCurrentTask = true;
+        } elseif ($order->status === 'sent') {
+            $taskTitle = 'سجل ما وصل من المورد';
+            $taskBody = 'طابق الكميات والتكاليف الفعلية ثم أرسل تأكيد الاستلام إلى المالك.';
+            $taskAnchor = 'receipt-confirmation';
+            $hasCurrentTask = true;
+        } elseif ($order->inventory_review_status === 'returned_for_edit') {
+            $taskTitle = 'عدل بنود الطلبية';
+            $taskBody = 'راجع ملاحظة المالك وصحح البنود المطلوبة ثم احفظ التعديل.';
+            $taskAnchor = 'order-actions';
+            $hasCurrentTask = true;
+        }
+    } else {
+        if ($order->status === 'draft') {
+            $taskTitle = 'راجع المسودة وحدد الخطوة التالية';
+            $taskBody = 'راجع البنود ثم أرسلها للمورد، أو أعدها للمحاسب للتعديل أو الجرد.';
+            $taskAnchor = 'order-actions';
+            $hasCurrentTask = true;
+        } elseif ($isOwnerReceiptReview) {
+            $taskTitle = 'راجع تأكيد الاستلام';
+            $taskBody = 'ابدأ بالفروقات والبنود التي عدلها المحاسب قبل المتابعة.';
+            $taskAnchor = 'receipt-review';
+            $hasCurrentTask = true;
+        } elseif ($isInventoryApproval) {
+            $taskTitle = 'راجع الملخص ثم اعتمد المخزون';
+            $taskBody = 'تحقق من إجمالي التكلفة والكميات وتحديثات التكلفة قبل الاعتماد النهائي.';
+            $taskAnchor = 'inventory-approval';
+            $hasCurrentTask = true;
+        } elseif ($order->status === 'sent') {
+            $taskTitle = 'بانتظار وصول الطلبية';
+            $taskBody = 'يمكن مشاركة نسخة المورد، ثم يسجل المالك أو المحاسب ما وصل فعليًا.';
+            $taskAnchor = 'receipt-review';
+        }
+    }
+    $financialItems = $order->items->where('excluded_after_count', false);
+    $expectedOrderTotal = $financialItems->sum(fn ($item) => (float) ($item->cost_price_at_order ?? 0));
+    $receivedOrderTotal = $financialItems->sum(fn ($item) => (float) ($item->cost_price_at_receipt ?? $item->cost_price_at_order ?? 0));
+    $receiptVarianceTotal = $receivedOrderTotal - $expectedOrderTotal;
+    $fixedWorkflowNotice = [
+        'returned_for_edit' => 'أعاد المالك الطلبية إلى المحاسب لتعديل البنود.',
+        'returned_after_edit' => 'أنهى المحاسب التعديل وأعاد الطلبية إلى المالك للمراجعة.',
+        'returned_for_count' => 'أعاد المالك الطلبية إلى المحاسب لإجراء الجرد المطلوب.',
+        'returned_after_count' => 'أنهى المحاسب الجرد وأعاد الطلبية إلى المالك للمراجعة.',
+    ][$order->workflow_status] ?? null;
 @endphp
 
 @if($isAccountantContext)
 <div class="max-w-7xl mx-auto p-4 md:p-6 space-y-6" dir="rtl">
-    <div class="ui-card p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+    <div id="order-overview" class="ui-card p-5 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
             <h1 class="ui-title text-2xl font-black">{{ $orderDisplayName }}</h1>
             <p class="ui-text-soft mt-1">المرحلة الحالية: {{ $workflowLabels[$order->workflow_status] ?? \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::UNKNOWN_LABEL }}</p>
@@ -96,6 +170,17 @@
             @endif
         </div>
     </div>
+    @if($fixedWorkflowNotice)
+        <div class="ui-alert ui-alert-info" role="status" aria-live="polite">
+            <div class="ui-alert-body space-y-1">
+                <p><strong>حالة الطلبية:</strong> {{ $workflowLabels[$order->workflow_status] ?? \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::UNKNOWN_LABEL }}</p>
+                <p>{{ $fixedWorkflowNotice }}</p>
+                <p><strong>ملاحظة المالك:</strong> {{ trim((string) $order->inventory_review_note) !== '' ? $order->inventory_review_note : 'لا توجد ملاحظة إضافية.' }}</p>
+            </div>
+        </div>
+    @endif
+    @include('modules.purchase-orders.user.partials.workflow-overview')
+    <span id="order-actions"></span>
 
     {{-- نعرض كل أسباب فشل الحفظ للمحاسب حتى لا يبدو زر تأكيد الاستلام وكأنه لم يستجب. --}}
     @if($errors->any())
@@ -106,13 +191,6 @@
                     <p>{{ $error }}</p>
                 @endforeach
             </div>
-        </div>
-    @endif
-
-    @if($order->inventory_review_note && in_array($order->inventory_review_status, ['returned_to_accountant', 'count_draft', 'returned_for_edit'], true))
-        <div class="ui-alert ui-alert-info">
-            <strong class="ui-title">ملاحظة {{ $storeOwnerName }}:</strong>
-            <span>{{ $order->inventory_review_note }}</span>
         </div>
     @endif
 
@@ -129,7 +207,7 @@
                         <th>المنتج</th>
                         <th>الكمية المطلوبة</th>
                         <th>الوحدة</th>
-                        <th>ملاحظة</th>
+                        <th><span class="flex items-center gap-2">ملاحظة البند <x-ui.help title="ماذا أكتب هنا؟" body="اكتب ما يساعد على شراء المنتج الصحيح، مثل: اللون الأسود، مقاس 40، أو رقم الموديل. اتركها فارغة إذا لم توجد مواصفات إضافية." /></span></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -224,16 +302,24 @@
 
     @if($order->events->isNotEmpty() && !in_array($order->workflow_status, ['returned_for_edit', 'returned_for_count', 'pending_receipt_confirmation'], true))
         <div class="ui-card p-5 space-y-3">
-            <h2 class="ui-title text-lg font-black">سجل الطلبية</h2>
+            <div class="flex items-center gap-2">
+                <h2 class="ui-title text-lg font-black">سجل الطلبية</h2>
+                <x-ui.help title="سجل أحداث الطلبية" body="يعرض ما حدث بالترتيب مع وقت التنفيذ. التعديل أو الاستلام لا يغير المخزون؛ يتغير المخزون عند الاعتماد النهائي فقط، وعملية العكس تنشئ حركة مقابلة مع إبقاء السجل." />
+            </div>
             @foreach($order->events->sortByDesc('created_at') as $event)
                 <div class="ui-card-muted p-3">
-                    @if($event->event === 'item_added')
-                        <span>أضاف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}</span>
-                    @elseif($event->event === 'item_deleted')
-                        <span>حذف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}</span>
-                    @else
-                        <span>{{ $event->note ?: ($workflowLabels[$event->to_status] ?? 'تحديث الطلبية') }}</span>
-                    @endif
+                    <div class="flex items-start gap-2">
+                        <span class="flex-1">
+                            @if($event->event === 'item_added')
+                                أضاف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}
+                            @elseif($event->event === 'item_deleted')
+                                حذف {{ $event->actor_type === 'user' ? $storeOwnerName : ($order->accountant?->name ?: 'المحاسب') }} المنتج {{ data_get($event->data, 'product_name') }}
+                            @else
+                                {{ $event->note ?: ($workflowLabels[$event->to_status] ?? 'تحديث الطلبية') }}
+                            @endif
+                        </span>
+                        <x-ui.help title="ماذا يعني هذا الحدث؟" :body="\App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::eventHelp($event->event)" />
+                    </div>
                     <time class="block ui-text-muted">{{ $event->created_at?->format('Y-m-d H:i') }}</time>
                 </div>
             @endforeach
@@ -244,7 +330,7 @@
 
 <div class="max-w-7xl mx-auto p-4 sm:p-6 space-y-8" dir="rtl">
     <a href="{{ route('user.stores.purchase-orders.index', $store->id) }}" class="ui-btn ui-btn-secondary">رجوع إلى الطلبيات</a>
-    <details class="ui-card ui-disclosure">
+    <details id="order-overview" class="ui-card ui-disclosure">
         <summary class="ui-disclosure-summary p-5 sm:p-6">
             <span class="min-w-0">
                 <span class="ui-title text-2xl sm:text-3xl font-black break-words">{{ $isOwnerReceiptReview ? 'مراجعة تأكيد الاستلام' : ($isInventoryApproval ? 'الاعتماد المخزني' : $orderDisplayName) }}</span>
@@ -271,9 +357,23 @@
             @endif
             @if($order->status === 'approved' && $order->approved_business_date)
                 <p class="ui-text-soft">تاريخ اعتماد المخزون: <strong class="ui-title">{{ $order->approved_business_date->format('Y-m-d') }}</strong></p>
+                <p class="ui-text-soft">وقت الاعتماد الفعلي للمراجعة: <strong class="ui-title" dir="ltr">{{ $order->approved_at?->format('Y-m-d H:i') ?: '—' }}</strong></p>
             @endif
         </div>
     </details>
+
+    @if($fixedWorkflowNotice)
+        <div class="ui-alert ui-alert-info" role="status" aria-live="polite">
+            <div class="ui-alert-body space-y-1">
+                <p><strong>حالة الطلبية:</strong> {{ $workflowLabels[$order->workflow_status] ?? \App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow::UNKNOWN_LABEL }}</p>
+                <p>{{ $fixedWorkflowNotice }}</p>
+                <p><strong>ملاحظة المالك:</strong> {{ trim((string) $order->inventory_review_note) !== '' ? $order->inventory_review_note : 'لا توجد ملاحظة إضافية.' }}</p>
+            </div>
+        </div>
+    @endif
+
+    @include('modules.purchase-orders.user.partials.workflow-overview')
+    <span id="order-actions"></span>
 
     @if($isTechnicalSupport)
         @include('modules.purchase-orders.user.partials.support-tools')
@@ -418,7 +518,7 @@
                     </div>
                 @endif
                 <table class="ui-table min-w-[680px]">
-                    <thead><tr><th>المنتج</th><th>نوع البند</th><th>الكمية</th><th>الوحدة</th><th>الملاحظة</th>
+                    <thead><tr><th>المنتج</th><th>نوع البند</th><th>الكمية</th><th>الوحدة</th><th><span class="flex items-center gap-2">ملاحظة البند <x-ui.help title="ماذا تعني؟" body="مواصفات تساعد على شراء المنتج الصحيح، مثل اللون أو المقاس أو رقم الموديل. إذا كانت فارغة فلا توجد مواصفات إضافية لهذا البند." /></span></th>
                         @if($order->inventory_review_status !== 'approved')
                             <th>آخر تعديل</th>
                         @endif
@@ -477,8 +577,12 @@
                         </div>
                         <div class="flex justify-end"><button class="ui-btn ui-btn-success">اعتماد وإرسال للمورد</button></div>
                     </form>
+                @elseif(in_array($order->inventory_review_status, ['returned_to_accountant', 'count_draft', 'pending_owner_after_count'], true))
+                    <div class="ui-alert ui-alert-warning"><span class="ui-alert-body">الإرسال متوقف لأن الطلبية ضمن مراجعة الجرد. أكمل الجرد واعتمده أولًا.</span></div>
+                @elseif($order->inventory_review_status === 'returned_for_edit')
+                    <div class="ui-alert ui-alert-info"><span class="ui-alert-body">الإرسال متوقف حتى ينهي المحاسب تعديل البنود المطلوبة ويعيد الطلبية إلى المالك.</span></div>
                 @else
-                    <div class="ui-alert ui-alert-warning flex items-center gap-2"><span class="ui-alert-body">الإرسال متوقف حتى اعتماد الجرد.</span><x-ui.help variant="warning" title="لماذا توقف الإرسال؟" body="أكمل الجرد المطلوب أولًا، وبعد اعتماده يمكنك إرسال الطلبية للمورد." /></div>
+                    <div class="ui-alert ui-alert-info"><span class="ui-alert-body">الإرسال غير متاح في مرحلة المراجعة الحالية. راجع حالة الطلبية والمهمة المطلوبة أعلاه.</span></div>
                 @endif
             </section>
         @elseif($order->status === 'received' && $order->workflow_status === 'pending_inventory_approval')
@@ -587,7 +691,7 @@
     @endif
 
     @if(in_array($order->status, ['approved','cancelled'], true) && $order->inventory_review_status !== 'pending_owner_after_count')
-        <div class="py-4 space-y-5">
+        <div id="order-items" class="py-4 space-y-5">
             <div class="pb-2">
                 <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                     <div>
@@ -844,6 +948,24 @@
         @csrf
 
         @if($isOwnerReceiptReview)
+            <section class="ui-card p-5 space-y-4" aria-labelledby="ownerDecisionReadinessTitle">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <span class="ui-badge {{ $receiptReviewReady ? 'ui-badge-success' : 'ui-badge-danger' }}">{{ $receiptReviewReady ? 'جاهزة لاتخاذ القرار' : 'تحتاج معالجة قبل المتابعة' }}</span>
+                        <h2 id="ownerDecisionReadinessTitle" class="ui-title text-xl font-black mt-2">قرار المالك</h2>
+                        <p class="ui-text-soft mt-1">
+                            @if($receiptReviewReady)
+                                لا توجد منتجات غير مربوطة. راجع {{ $receiptReviewAttentionCount }} بندًا مميزًا ثم اعتمد مراجعة الاستلام.
+                            @else
+                                يوجد {{ $receiptReviewUnresolvedCount }} بند غير مربوط بمنتج أو مشتريات المالك؛ عالجه قبل المتابعة.
+                            @endif
+                        </p>
+                    </div>
+                    @if($receiptReviewAttentionCount > 0)
+                        <button type="button" class="ui-btn ui-btn-primary" data-receipt-filter="attention" aria-pressed="false">عرض ما يحتاج مراجعة ({{ $receiptReviewAttentionCount }})</button>
+                    @endif
+                </div>
+            </section>
             <section class="ui-card p-5 space-y-5" aria-labelledby="receiptReviewSummaryTitle">
                 <div>
                     <h2 id="receiptReviewSummaryTitle" class="ui-title text-xl font-black">ملخص مراجعة الاستلام</h2>
@@ -954,7 +1076,8 @@
                     data-changed="{{ $hasAccountantReceiptChange ? '1' : '0' }}"
                     data-variance="{{ abs($variance) > 0.01 ? '1' : '0' }}"
                     data-unresolved="{{ ! $item->product_id && ! $item->matched_product_id && ! $item->add_to_owner_purchases ? '1' : '0' }}"
-                    data-owner="{{ $item->add_to_owner_purchases ? '1' : '0' }}">
+                    data-owner="{{ $item->add_to_owner_purchases ? '1' : '0' }}"
+                    data-attention="{{ $hasAccountantReceiptChange || abs($variance) > 0.01 || (! $item->product_id && ! $item->matched_product_id && ! $item->add_to_owner_purchases) || $item->add_to_owner_purchases ? '1' : '0' }}">
                     <summary class="ui-disclosure-summary">
                         <span class="flex items-center gap-2 min-w-0">
                             <strong class="ui-title break-words">{{ $item->productName() }}</strong>
@@ -1009,6 +1132,23 @@
                                 <span class="ui-title font-bold">{{ number_format((float) $item->cost_price_at_order, 2) }} ر.س</span>
                             </div>
                         </div>
+
+                        @if($isOwnerReceiptReview)
+                            @php
+                                $comparisonReceived = (float) ($item->quantity_received ?? $item->quantity_requested ?? 0);
+                                $comparisonQuantityDifference = $comparisonReceived - (float) $item->quantity_requested;
+                                $comparisonReceiptCost = (float) ($item->cost_price_at_receipt ?? $item->cost_price_at_order ?? 0);
+                                $comparisonCostDifference = $comparisonReceiptCost - (float) $item->cost_price_at_order;
+                            @endphp
+                            <div class="ui-card-muted p-3 space-y-2" aria-label="مقارنة المطلوب بالمستلم">
+                                <strong class="ui-title block">قبل وبعد الاستلام</strong>
+                                <div class="grid grid-cols-3 gap-2 ui-text-caption">
+                                    <span class="ui-text-soft">البيان</span><span class="ui-text-soft">المطلوب</span><span class="ui-text-soft">المستلم / الفرق</span>
+                                    <span class="ui-title">الكمية</span><span>{{ number_format((float) $item->quantity_requested, 2) }}</span><span>{{ number_format($comparisonReceived, 2) }} ({{ $comparisonQuantityDifference > 0 ? '+' : '' }}{{ number_format($comparisonQuantityDifference, 2) }})</span>
+                                    <span class="ui-title">التكلفة</span><span>{{ number_format((float) $item->cost_price_at_order, 2) }}</span><span>{{ number_format($comparisonReceiptCost, 2) }} ({{ $comparisonCostDifference > 0 ? '+' : '' }}{{ number_format($comparisonCostDifference, 2) }})</span>
+                                </div>
+                            </div>
+                        @endif
 
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-2">
                             <div class="space-y-1.5">
@@ -1102,14 +1242,25 @@
         <span id="inventory-approval"></span>
         <form id="approveOrderForm" data-order-id="{{ $order->id }}" method="POST" action="{{ route('user.stores.purchase-orders.approve', [$store->id, $order->id]) }}" class="space-y-6">
             @csrf
+            <section class="ui-card p-5 space-y-4" aria-labelledby="financialApprovalSummaryTitle">
+                <div class="flex items-center gap-2">
+                    <h2 id="financialApprovalSummaryTitle" class="ui-title text-xl font-black">الملخص المالي قبل الاعتماد</h2>
+                    <x-ui.help variant="warning" title="مراجعة المبالغ" body="يعرض تكلفة الطلب المحفوظة وتكلفة الاستلام والفرق بينهما. هذه البطاقة للعرض فقط؛ تنفيذ التغيير المخزني والمالي يحدث بعد ضغط اعتماد الطلبية." />
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <div class="ui-card-muted p-4"><span class="ui-text-soft block">تكلفة الطلب المتوقعة</span><strong class="ui-title text-2xl">{{ number_format($expectedOrderTotal, 2) }} ر.س</strong></div>
+                    <div class="ui-card-muted p-4"><span class="ui-text-soft block">تكلفة الاستلام</span><strong class="ui-title text-2xl">{{ number_format($receivedOrderTotal, 2) }} ر.س</strong></div>
+                    <div class="ui-card-muted p-4"><span class="ui-text-soft block">فرق التكلفة</span><strong class="{{ $receiptVarianceTotal > 0 ? 'ui-status-danger' : ($receiptVarianceTotal < 0 ? 'ui-status-success' : 'ui-title') }} text-2xl">{{ number_format($receiptVarianceTotal, 2) }} ر.س</strong></div>
+                </div>
+            </section>
             <section class="ui-card p-4">
                 <span class="ui-text-soft block">تاريخ اعتماد المالك للجرد</span>
                 <strong class="ui-title">{{ $latestCountApprovalEvent?->created_at?->format('Y-m-d H:i') ?: 'لم يطلب جرد' }}</strong>
             </section>
             @if($order->items->contains(fn ($item) => (bool) ($item->add_to_owner_purchases ?? false)))
                 <div class="ui-alert ui-alert-warning">
-                    <strong>الأسطر المختارة كمشتريات مالك</strong>
-                    <x-ui.help variant="warning" title="مشتريات المالك" body="ستُسجل هذه العناصر مباشرة في المشتريات ولن تُضاف إلى المخزون." />
+                    <strong class="ui-alert-title">ماذا يحدث لمشتريات المالك عند الاعتماد؟</strong>
+                    <span class="ui-alert-body">تُسجل كبنود شراء مستقلة باسم المنتج وكميته وتكلفته في يوم العمل المختار. لا تضاف كمياتها إلى المخزون، ولا تغيّر كمية أو تكلفة منتج البيع.</span>
                 </div>
             @endif
             <div class="grid gap-4 lg:grid-cols-2">
@@ -1154,7 +1305,14 @@
             <section class="ui-card p-5 space-y-4">
                 <label class="block">
                     <span class="mb-2 flex items-center gap-2 font-bold ui-title">تاريخ الاعتماد وإضافة المخزون <x-ui.help title="تاريخ الاعتماد" body="تُسجل حركة التوريد وحفظ مشتريات المالك في هذا التاريخ. التاريخ الافتراضي هو يوم عمل المتجر الحالي." /></span>
-                    <input type="date" name="business_date" value="{{ old('business_date', $currentBusinessDate) }}" required class="ui-input">
+                    <select name="business_date" required class="ui-input">
+                        @foreach(($openBusinessDates ?? [$currentBusinessDate]) as $openBusinessDateOption)
+                            <option value="{{ $openBusinessDateOption }}" @selected(old('business_date', $currentBusinessDate) === $openBusinessDateOption)>
+                                {{ $openBusinessDateOption }}{{ $openBusinessDateOption === $currentBusinessDate ? ' — يوم العمل الجاري' : ' — لم يكتمل إغلاقه' }}
+                            </option>
+                        @endforeach
+                    </select>
+                    <span class="mt-2 block ui-text-soft">يمكن اختيار يوم سابق ما دام إغلاق شفتاته لم يكتمل. وقت الاعتماد الفعلي سيبقى محفوظًا للمراجعة.</span>
                 </label>
             <div class="flex items-start gap-4">
                 <div>
@@ -1167,11 +1325,19 @@
             <div class="pt-4 flex justify-end">
                 <button id="approveOrderButton" class="ui-btn ui-btn-primary ui-btn-borderless w-full md:w-auto px-10 disabled:cursor-not-allowed font-black py-4 flex justify-center items-center gap-2">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                    <span class="js-approve-button-text">اعتماد الطلبية</span>
+                    <span class="js-approve-button-text">اعتماد وإضافة {{ $financialItems->where('add_to_owner_purchases', false)->count() }} منتج للمخزون</span>
                 </button>
             </div>
             </section>
         </form>
+    @endif
+
+    @if($isOwnerReceiptReview || $isInventoryApproval)
+        <nav class="ui-context-action-dock" aria-label="إجراء المالك الحالي">
+            <a href="#{{ $isInventoryApproval ? 'inventory-approval' : 'receipt-review' }}" class="ui-btn ui-btn-primary w-full">
+                {{ $isInventoryApproval ? 'مراجعة الاعتماد النهائي' : 'مراجعة البنود التي تحتاج قرارًا' }}
+            </a>
+        </nav>
     @endif
 </div>
 
@@ -1430,6 +1596,13 @@
 
 <div class="hidden" data-purchase-order-show-config="{{ json_encode([
     'stockApprovalCostChanges' => $stockApprovalCostChanges,
+    'approvalSummary' => [
+        'inventory_items' => $financialItems->where('add_to_owner_purchases', false)->count(),
+        'owner_purchase_items' => $financialItems->where('add_to_owner_purchases', true)->count(),
+        'received_total' => $receivedOrderTotal,
+        'variance_total' => $receiptVarianceTotal,
+        'business_date' => $currentBusinessDate ?? null,
+    ],
     'orderStatus' => $order->status,
     'draftKey' => 'purchase-order-draft:' . auth()->id() . ':' . $store->id,
     'clearDraft' => session('success') === 'تم تجهيز الطلبية كمسودة. راجعها ثم اضغط اعتماد الطلبية لإرسالها للمورد.',

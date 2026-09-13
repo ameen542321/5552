@@ -173,6 +173,11 @@ class EmployeeHistoricalStoreService
         return $storeId;
     }
 
+    public function employeeStoreIdAtPeriodEnd(Employee $employee, $periodEnd): int
+    {
+        return $this->storeIdAtPeriodEnd($employee, Carbon::parse($periodEnd)->copy()->endOfDay());
+    }
+
     private function inclusiveDays($from, $to): int
     {
         $start = Carbon::parse($from)->copy()->startOfDay();

@@ -24,6 +24,9 @@ class SqliteTestingSchemaTest extends TestCase
         $this->assertContains('onesignal_settings', $tables);
         $this->assertContains('security_events', $tables);
         $this->assertContains('security_event_activities', $tables);
+        $this->assertContains('purchase_order_limit_settings', $tables);
+        $this->assertContains('inventory_count_sessions', $tables);
+        $this->assertContains('inventory_count_session_items', $tables);
         $this->assertNotContains('migrations', $tables);
 
         $userColumns = $database->query('PRAGMA table_info("users")')->fetchAll(PDO::FETCH_ASSOC);
@@ -32,6 +35,8 @@ class SqliteTestingSchemaTest extends TestCase
         $creditSaleColumns = $database->query('PRAGMA table_info("credit_sales")')->fetchAll(PDO::FETCH_ASSOC);
         $saleColumns = $database->query('PRAGMA table_info("sales")')->fetchAll(PDO::FETCH_ASSOC);
         $accountantColumns = $database->query('PRAGMA table_info("accountants")')->fetchAll(PDO::FETCH_ASSOC);
+        $purchaseOrderLimitColumns = $database->query('PRAGMA table_info("purchase_order_limit_settings")')->fetchAll(PDO::FETCH_ASSOC);
+        $purchaseOrderLimitIndexes = $database->query('PRAGMA index_list("purchase_order_limit_settings")')->fetchAll(PDO::FETCH_ASSOC);
 
         $this->assertContains('must_reset_password', array_column($userColumns, 'name'));
         $this->assertContains('verification_note', array_column($securityColumns, 'name'));
@@ -39,6 +44,10 @@ class SqliteTestingSchemaTest extends TestCase
         $this->assertContains('response_expires_at', array_column($securityColumns, 'name'));
         $this->assertContains('piece_price', array_column($productColumns, 'name'));
         $this->assertContains('added_by', array_column($creditSaleColumns, 'name'));
+        $this->assertContains('is_global', array_column($purchaseOrderLimitColumns, 'name'));
+        $this->assertContains('counted_statuses', array_column($purchaseOrderLimitColumns, 'name'));
+        $this->assertContains('exception_expires_at', array_column($purchaseOrderLimitColumns, 'name'));
+        $this->assertContains(1, array_map('intval', array_column($purchaseOrderLimitIndexes, 'unique')));
 
         $saleAccountantColumn = current(array_filter(
             $saleColumns,

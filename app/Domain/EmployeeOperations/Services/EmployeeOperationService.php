@@ -296,7 +296,6 @@ class EmployeeOperationService
                 'mixed' => 'ميكس',
                 default => 'كاش',
             };
-
             // فحص التكرار يجب أن يكون على نفس أصل المديونية فقط.
             // مثال: إذا كان لدى الموظف دينان منفصلان وتم تحصيل 25 ريالًا من كل واحد في نفس اليوم،
             // فهذا ليس تكرارًا. التكرار الحقيقي هو إرسال نفس تحصيل الـ 25 ريالًا لنفس الدين مرتين.
@@ -392,9 +391,14 @@ class EmployeeOperationService
             $operationContext = $this->resolveOperationContext(
                 $person->store_id,
                 $options['date'] ?? now()->toDateString(),
-                (bool) ($options['use_shift_gap_date'] ?? false)
+                (bool) ($options['use_shift_gap_date'] ?? false),
+                (bool) ($options['use_accounting_date'] ?? false)
             );
             $operationDate = $operationContext['operation_date'];
+            if ((bool) ($options['require_open_business_date'] ?? false)
+                && ! in_array($operationDate->toDateString(), app(ShiftLifecycleService::class)->openBusinessDates($person->store_id), true)) {
+                throw new EmployeeOperationException('لا يمكن تسجيل التحصيل في هذا اليوم لأنه مقفل أو غير متاح.');
+            }
             $remainingAmount = max(0, (float) $lockedCreditSale->remaining_amount - $amount);
             $isFullyCollected = $remainingAmount == 0;
             $requestedPaymentMethod = $options['payment_method'] ?? 'cash';
@@ -408,6 +412,7 @@ class EmployeeOperationService
                 'mixed' => 'ميكس',
                 default => 'كاش',
             };
+            $collectionNotes = trim((string) ($options['notes'] ?? ''));
             $lockedCreditSale->remaining_amount = $remainingAmount;
             $lockedCreditSale->status = $isFullyCollected ? CreditSale::STATUS_DEDUCTED : CreditSale::STATUS_PENDING;
             $lockedCreditSale->deducted_month = $isFullyCollected ? $operationDate->format('Y-m') : $lockedCreditSale->deducted_month;
@@ -428,6 +433,7 @@ class EmployeeOperationService
                 'meta' => json_encode([
                     'added_by_name' => $actor['name'] ?? null,
                     'description' => ($isFullyCollected ? 'تحصيل كامل' : 'تحصيل جزئي') . ' - ' . $paymentMethodLabel,
+                    'notes' => $collectionNotes !== '' ? $collectionNotes : null,
                     'remaining_amount_after_collection' => $remainingAmount,
                 ], JSON_UNESCAPED_UNICODE),
                 'created_at' => now(),
@@ -446,6 +452,7 @@ class EmployeeOperationService
                     'payment_method_label' => $paymentMethodLabel,
                     'cash_amount' => $cashAmount,
                     'card_amount' => $cardAmount,
+                    'notes' => $collectionNotes !== '' ? $collectionNotes : null,
                 ])
             );
 

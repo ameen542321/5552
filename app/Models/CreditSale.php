@@ -94,6 +94,7 @@ public function getCollectionPaymentsAttribute()
                 'added_by' => $collection->collected_by,
                 'added_by_name' => $collection->collected_by_name ?: ($meta['added_by_name'] ?? null),
                 'description' => $meta['description'] ?? ($collection->payment_method_label ? 'تحصيل آجل - ' . $collection->payment_method_label : 'تحصيل آجل'),
+                'notes' => $meta['notes'] ?? null,
                 'payment_method' => $collection->payment_method,
                 'payment_method_label' => $collection->payment_method_label,
                 'cash_amount' => (float) $collection->cash_amount,

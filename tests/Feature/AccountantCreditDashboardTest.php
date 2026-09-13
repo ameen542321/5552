@@ -52,6 +52,25 @@ class AccountantCreditDashboardTest extends TestCase
             'store_id' => $store->id,
             'person_id' => $employee->id,
             'person_type' => Employee::class,
+            'action_name' => 'credit_sale_partial',
+            'amount' => 25,
+            'description' => 'تحصيل نفذه المالك',
+            'meta' => [
+                'actor_type' => 'user',
+                'actor_name' => $owner->name,
+                'operation_date' => '2026-07-18',
+                'payment_method' => 'cash',
+                'payment_method_label' => 'كاش',
+                'cash_amount' => 25,
+                'card_amount' => 0,
+            ],
+            'created_at' => Carbon::parse('2026-07-20 10:00:00'),
+        ]);
+
+        EmployeeLog::create([
+            'store_id' => $store->id,
+            'person_id' => $employee->id,
+            'person_type' => Employee::class,
             'action_name' => 'debt',
             'amount' => 50,
             'description' => 'مديونية اختبار',
@@ -74,11 +93,12 @@ class AccountantCreditDashboardTest extends TestCase
             '2026-07-18'
         );
 
-        $this->assertSame(30.0, (float) $result['collections_total']);
-        $this->assertSame(10.0, (float) $result['collections_cash_total']);
+        $this->assertSame(55.0, (float) $result['collections_total']);
+        $this->assertSame(35.0, (float) $result['collections_cash_total']);
         $this->assertSame(20.0, (float) $result['collections_card_total']);
-        $this->assertCount(1, $result['collection_rows']);
+        $this->assertCount(2, $result['collection_rows']);
         $this->assertCount(1, $result['debt_rows']);
         $this->assertSame('أحمد التحصيل', $result['collection_rows'][0]['employee_name']);
+        $this->assertSame($owner->name, $result['collection_rows'][1]['actor_name']);
     }
 }

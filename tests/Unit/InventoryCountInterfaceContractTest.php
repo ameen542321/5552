@@ -1,0 +1,262 @@
+<?php
+
+namespace Tests\Unit;
+
+use App\Models\InventoryCountSession;
+use PHPUnit\Framework\TestCase;
+
+class InventoryCountInterfaceContractTest extends TestCase
+{
+    public function test_accountant_administrative_tasks_group_contains_the_three_required_destinations(): void
+    {
+        $navbar = file_get_contents(__DIR__.'/../../resources/views/dashboard/navbars/accountant.blade.php');
+
+        $this->assertStringContainsString('مهام إدارية', $navbar);
+        $this->assertStringContainsString("route('accountant.transfers.index')", $navbar);
+        $this->assertStringContainsString("route('accountant.purchase-orders.index')", $navbar);
+        $this->assertStringContainsString("route('accountant.inventory-counts.index')", $navbar);
+        $this->assertStringContainsString('openAdministrativeTasks', $navbar);
+    }
+
+    public function test_inventory_count_product_selector_uses_audit_cards_and_lamp_help(): void
+    {
+        $selector = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/create.blade.php');
+
+        $this->assertStringContainsString('<x-ui.help', $selector);
+        $this->assertStringContainsString('grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3', $selector);
+        $this->assertStringContainsString('ui-dot-danger', $selector);
+        $this->assertStringContainsString('الكمية:', $selector);
+        $this->assertStringContainsString('البيع:', $selector);
+        $this->assertStringContainsString('التكلفة:', $selector);
+        $this->assertStringContainsString('تحديد كل المنتجات المتاحة', $selector);
+        $this->assertStringContainsString('نتائج جُردت خلال آخر 30 يومًا', $selector);
+        $this->assertStringContainsString('inventory_count_remaining_days', $selector);
+    }
+
+    public function test_recently_audited_products_are_excluded_from_new_count_sessions(): void
+    {
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+
+        $this->assertStringContainsString('eligibleProductsQuery', $controller);
+        $this->assertStringContainsString("subDays(30)", $controller);
+        $this->assertStringContainsString("whereDoesntHave('inventoryLogs'", $controller);
+        $this->assertStringContainsString("Rule::in(['page', 'all'])", $controller);
+    }
+
+    public function test_owner_credit_collection_is_available_for_old_operations(): void
+    {
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/Store/EmployeeFinanceController.php');
+        $service = file_get_contents(__DIR__.'/../../app/Domain/EmployeeOperations/Services/EmployeeOperationService.php');
+        $routes = file_get_contents(__DIR__.'/../../routes/user.php');
+        $modal = file_get_contents(__DIR__.'/../../resources/views/components/employee/operation-details-modal.blade.php');
+
+        $this->assertStringContainsString('ownerStoreCollection', $controller);
+        $this->assertStringContainsString("'collection_date' => ['required', 'date']", $controller);
+        $this->assertStringContainsString("'date' => \$validated['collection_date']", $controller);
+        $this->assertStringContainsString('openBusinessDates($store)', $controller);
+        $this->assertStringContainsString("'require_open_business_date' => true", $controller);
+        $this->assertStringContainsString("(bool) (\$options['use_accounting_date'] ?? false)", $service);
+        $this->assertStringContainsString("\$options['require_open_business_date']", $service);
+        $this->assertStringContainsString("name('credit-sales.collect')", $routes);
+        $this->assertStringContainsString('name="collection_date"', $modal);
+        $this->assertStringContainsString('openCreditCollectionDates', $modal);
+        $this->assertStringContainsString('يمكن تحصيل عملية من شهر سابق', $modal);
+    }
+
+    public function test_inventory_count_operational_guidance_is_exposed_through_help_components(): void
+    {
+        foreach ([
+            'owner/index.blade.php',
+            'owner/create.blade.php',
+            'accountant/index.blade.php',
+            'accountant/show.blade.php',
+        ] as $view) {
+            $contents = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/'.$view);
+            $this->assertStringContainsString('<x-ui.help', $contents, $view);
+        }
+    }
+
+    public function test_inventory_reference_contains_its_creation_date_and_sequence(): void
+    {
+        $session = new InventoryCountSession;
+        $session->id = 27;
+        $session->created_at = '2026-08-28 12:30:00';
+
+        $this->assertSame('INV-20260828-000027', $session->referenceCode());
+    }
+
+    public function test_description_is_used_for_search_but_not_rendered_in_inventory_pages_or_pdf(): void
+    {
+        $ownerController = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $views = implode("\n", array_map(
+            static fn (string $path): string => file_get_contents($path),
+            glob(__DIR__.'/../../resources/views/inventory-counts/**/*.blade.php') ?: []
+        ));
+        $pdf = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/pdf.blade.php');
+
+        $this->assertStringContainsString("orWhere('description', 'like'", $ownerController);
+        $this->assertStringNotContainsString('product_description_snapshot', $views);
+        $this->assertStringNotContainsString('<th>الوصف</th>', $pdf);
+    }
+
+    public function test_store_page_links_to_inventory_sessions_and_inventory_status(): void
+    {
+        $storePage = file_get_contents(__DIR__.'/../../resources/views/user/stores/show.blade.php');
+
+        $this->assertStringContainsString("route('user.stores.inventory-counts.index'", $storePage);
+        $this->assertStringContainsString('إدارة جلسات الجرد', $storePage);
+        $this->assertStringContainsString('حالة جرد المنتجات', $storePage);
+    }
+
+    public function test_accountant_fields_explain_draft_save_and_only_offer_relevant_units(): void
+    {
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/accountant/show.blade.php');
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/Accountant/InventoryCountController.php');
+
+        $this->assertStringContainsString('placeholder="مثال: 12"', $view);
+        $this->assertStringContainsString('placeholder="مثال: الكمية موزعة على رفّين"', $view);
+        $this->assertStringContainsString('حفظ كمية المنتج', $view);
+        $this->assertStringContainsString('يحفظ هذا الزر كمية هذا المنتج مؤقتًا', $view);
+        $this->assertStringContainsString("return ['roll', 'meter']", $controller);
+        $this->assertStringContainsString("return ['kit', 'piece']", $controller);
+        $this->assertStringContainsString("Rule::in(\$this->allowedUnits", $controller);
+    }
+
+    public function test_owner_comparison_explains_snapshot_time_and_supports_bulk_approval(): void
+    {
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+        $service = file_get_contents(__DIR__.'/../../app/Services/InventoryCountService.php');
+
+        $this->assertStringContainsString('كمية النظام وقت حفظ المحاسب', $view);
+        $this->assertStringContainsString('وقت المقارنة:', $view);
+        $this->assertStringContainsString('inventory-bulk-approval', $view);
+        $this->assertStringContainsString('اعتماد المنتجات المحددة', $view);
+        $this->assertStringContainsString('تُثبت الكمية المعتمدة في المخزون', $view);
+        $this->assertStringContainsString('system_snapshot_at', $service);
+        $this->assertStringContainsString("['returned', 'recounted']", $service);
+    }
+
+    public function test_temporary_single_product_mode_is_visible_and_legacy_audit_is_the_fallback(): void
+    {
+        $index = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/index.blade.php');
+        $create = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/create.blade.php');
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $show = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+
+        $this->assertStringContainsString('تنبيه اختبار مؤقت', $index);
+        $this->assertStringContainsString('إعادة الحد الأدنى إلى خمسة منتجات', $index);
+        $this->assertStringContainsString('count($selected) >= 1', $create);
+        $this->assertStringContainsString("whereNull('inventory_count_session_item_id')", $controller);
+        $this->assertStringContainsString("where('note', 'like', 'تأكيد جرد المنتج%')", $controller);
+        $this->assertStringContainsString('آخر جرد معتمد:', $show);
+        $this->assertStringContainsString('الكمية:', $show);
+        $stock = file_get_contents(__DIR__.'/../../resources/views/user/stores/products/stock/index.blade.php');
+        $this->assertStringNotContainsString('سجل جرد سابق قبل تشغيل نظام الجلسات المستقل', $stock);
+    }
+
+    public function test_accountant_submit_explains_and_confirms_what_will_happen(): void
+    {
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/accountant/show.blade.php');
+
+        $this->assertStringContainsString('يرسل الكميات المحفوظة ولقطات المقارنة', $view);
+        $this->assertStringContainsString('data-ui-confirm=', $view);
+        $this->assertStringContainsString('إرسال نتائج الجرد للمالك', $view);
+        $this->assertStringContainsString('جارٍ إرسال النتائج...', $view);
+        $this->assertStringContainsString('احفظ كل منتج بعد إدخال كميته', $view);
+        $this->assertStringContainsString('احفظ كميات المنتجات أولًا', $view);
+        $this->assertStringContainsString('لم يتم إرسال النتائج:', $view);
+    }
+
+    public function test_credit_collection_preview_uses_a_stable_sale_identifier(): void
+    {
+        $collectionScript = file_get_contents(__DIR__.'/../../resources/js/features/accountant/credit-collection.js');
+        $sensitiveActions = file_get_contents(__DIR__.'/../../resources/js/features/sensitive-interface-actions.js');
+
+        $this->assertStringContainsString('const salesById =', $collectionScript);
+        $this->assertStringContainsString('data-sale-id="${sale.id}"', $collectionScript);
+        $this->assertStringNotContainsString('data-sale="${escapeHtml(JSON.stringify(sale))}"', $collectionScript);
+        $this->assertStringContainsString("window.openPreviewModal?.(element.dataset.saleId)", $sensitiveActions);
+        $this->assertStringContainsString("showCollectionToast('error', 'تعذر فتح نافذة المعاينة.')", $collectionScript);
+    }
+
+    public function test_owner_credit_collection_requires_a_preview_before_submission(): void
+    {
+        $modal = file_get_contents(__DIR__.'/../../resources/views/components/employee/operation-details-modal.blade.php');
+        $script = file_get_contents(__DIR__.'/../../resources/js/features/employees/owner-credit-collection-preview.js');
+        $app = file_get_contents(__DIR__.'/../../resources/js/app.js');
+
+        $this->assertStringContainsString('data-owner-credit-preview', $modal);
+        $this->assertStringContainsString('مراجعة التحصيل قبل التسجيل', $modal);
+        $this->assertStringContainsString('تأكيد وتسجيل التحصيل', $modal);
+        $this->assertStringContainsString('data-owner-credit-preview-value="amount"', $modal);
+        $this->assertStringContainsString("form.elements.collection_date", $script);
+        $this->assertStringContainsString("mixedRow?.classList.toggle('hidden', method !== 'mixed')", $script);
+        $this->assertStringContainsString("import './features/employees/owner-credit-collection-preview'", $app);
+    }
+
+    public function test_draft_review_pdf_fonts_and_dashboard_inventory_alert_follow_shared_interfaces(): void
+    {
+        $draft = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $dashboardController = file_get_contents(__DIR__.'/../../app/Http/Controllers/Accountant/DashboardController.php');
+        $dashboard = file_get_contents(__DIR__.'/../../resources/views/dashboard/accountant/index.blade.php');
+
+        $this->assertStringContainsString('مراجعة المسودة قبل الإرسال', $draft);
+        $this->assertStringContainsString('تعديل المنتجات أو المحاسب', $draft);
+        $this->assertStringContainsString('إرسال جلسة الجرد للمحاسب', $draft);
+        $this->assertStringContainsString('ArabicPdf as PDF', $controller);
+        $this->assertStringContainsString("PDF::loadView('inventory-counts.pdf'", $controller);
+        $this->assertStringContainsString('pendingInventoryCountSessions', $dashboardController);
+        $this->assertStringContainsString('طلبات الجرد', $dashboard);
+    }
+
+    public function test_approved_product_exposes_stock_management_without_long_explanatory_blocks(): void
+    {
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+        $accountantView = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/accountant/show.blade.php');
+
+        $this->assertStringContainsString('إدارة مخزون المنتج', $view);
+        $this->assertStringContainsString("route('user.stores.products.stock'", $view);
+        $this->assertStringContainsString('تم تسجيل المنتجات المعتمدة', $view);
+        $this->assertStringNotContainsString('<strong>ما بعد الاعتماد:</strong>', $view);
+        $this->assertStringNotContainsString('<strong>خطوة إلزامية:</strong>', $accountantView);
+    }
+
+    public function test_owner_can_cancel_then_delete_a_count_session_and_return_from_stock(): void
+    {
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $routes = file_get_contents(__DIR__.'/../../routes/user.php');
+        $ownerView = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+        $stockView = file_get_contents(__DIR__.'/../../resources/views/user/stores/products/stock/index.blade.php');
+
+        $this->assertStringContainsString('public function cancel(', $controller);
+        $this->assertStringContainsString("['draft', 'cancelled']", $controller);
+        $this->assertStringContainsString("name('cancel')", $routes);
+        $this->assertStringContainsString('إلغاء الجلسة', $ownerView);
+        $this->assertStringContainsString("'return_to' => 'inventory-count'", $ownerView);
+        $this->assertStringContainsString('href="{{ $stockReturnUrl }}"', $stockView);
+        $this->assertStringNotContainsString('@forelse', $stockView);
+        $this->assertStringNotContainsString('@empty', $stockView);
+        $this->assertStringNotContainsString('@if', $stockView);
+        $this->assertStringNotContainsString('@error', $stockView);
+        $stockController = file_get_contents(__DIR__.'/../../app/Http/Controllers/ProductStockController.php');
+        $this->assertStringContainsString("request('return_to') === 'inventory-count'", $stockController);
+        $this->assertStringContainsString("'stockReturnUrl'", $stockController);
+    }
+
+    public function test_inventory_approval_reconciles_stock_with_the_selected_business_date(): void
+    {
+        $service = file_get_contents(__DIR__.'/../../app/Services/InventoryCountService.php');
+        $controller = file_get_contents(__DIR__.'/../../app/Http/Controllers/InventoryCountController.php');
+        $view = file_get_contents(__DIR__.'/../../resources/views/inventory-counts/owner/show.blade.php');
+
+        $this->assertStringContainsString('quantityToStoredUnit', $service);
+        $this->assertStringContainsString('StockMovement::recordForProduct', $service);
+        $this->assertStringContainsString('تمت إضافة فرق الجرد إلى المخزون', $service);
+        $this->assertStringContainsString('تم خصم فرق الجرد من المخزون', $service);
+        $this->assertStringContainsString('تاريخ الاعتماد لا يمكن أن يكون أقدم', $service);
+        $this->assertStringContainsString("'business_date' => \$approvalBusinessDate", $service);
+        $this->assertStringContainsString("'approval_business_date' => 'required|date'", $controller);
+        $this->assertStringContainsString('name="approval_business_date"', $view);
+    }
+}

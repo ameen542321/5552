@@ -12,6 +12,7 @@ use App\Modules\PurchaseOrders\Models\StorePurchaseOrderItem;
 use App\Modules\PurchaseOrders\Services\PurchaseOrderPdfService;
 use App\Modules\PurchaseOrders\Services\StorePurchaseOrderService;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderItemSorter;
+use App\Modules\PurchaseOrders\Support\PurchaseOrderSearch;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow;
 use App\Services\ShiftLifecycleService;
 use App\Services\SupportSessionService;
@@ -37,11 +38,28 @@ class StorePurchaseOrderController extends Controller
     {
         $this->authorizeStore($store);
         $statuses = ['draft', 'sent', 'received', 'approved', 'cancelled'];
-        $status = in_array($request->get('status'), $statuses, true) ? $request->get('status') : null;
         $workflowStatuses = array_keys(PurchaseOrderWorkflow::filterLabels($store->user?->name));
-        $workflowStatus = in_array($request->get('workflow_status'), $workflowStatuses, true) ? $request->get('workflow_status') : null;
-        $dateFrom = $request->filled('date_from') ? $request->date('date_from')->startOfDay() : now()->startOfMonth();
-        $dateTo = $request->filled('date_to') ? $request->date('date_to')->endOfDay() : now()->endOfMonth();
+        $filters = $request->validate([
+            'status' => ['nullable', Rule::in($statuses)],
+            'workflow_status' => ['nullable', Rule::in($workflowStatuses)],
+            'search' => ['nullable', 'string', 'max:100'],
+            'date_from' => ['nullable', 'date_format:Y-m-d'],
+            'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
+        ], [
+            'status.in' => 'حالة الطلبية المحددة غير صحيحة.',
+            'workflow_status.in' => 'مرحلة الطلبية المحددة غير صحيحة.',
+            'search.string' => 'يجب أن يكون نص البحث صالحًا.',
+            'search.max' => 'يجب ألا يتجاوز البحث 100 حرف.',
+            'date_from.date_format' => 'تاريخ البداية غير صحيح.',
+            'date_to.date_format' => 'تاريخ النهاية غير صحيح.',
+            'date_to.after_or_equal' => 'يجب أن يكون تاريخ النهاية مساويًا لتاريخ البداية أو بعده.',
+        ]);
+        $status = $filters['status'] ?? null;
+        $workflowStatus = $filters['workflow_status'] ?? null;
+        $search = trim((string) ($filters['search'] ?? ''));
+        $searchOrderId = PurchaseOrderSearch::orderId($search);
+        $dateFrom = isset($filters['date_from']) ? \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $filters['date_from'])->startOfDay() : now()->startOfMonth();
+        $dateTo = isset($filters['date_to']) ? \Illuminate\Support\Carbon::createFromFormat('Y-m-d', $filters['date_to'])->endOfDay() : now()->endOfMonth();
         $technicalSupportSession = app(SupportSessionService::class)->active($request);
 
         $ordersQuery = StorePurchaseOrder::withCount('items');
@@ -55,6 +73,18 @@ class StorePurchaseOrderController extends Controller
             ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($workflowStatus, fn ($query) => $query->where('workflow_status', $workflowStatus))
+            // البحث الشامل يطابق مرجع الطلبية، المورد، وأسماء المنتجات النظامية أو المخصصة.
+            ->when($search !== '', function ($query) use ($search, $searchOrderId): void {
+                $query->where(function ($nested) use ($search, $searchOrderId): void {
+                    $nested->where('supplier_name', 'like', '%'.$search.'%')
+                        ->when($searchOrderId !== null, fn ($referenceQuery) => $referenceQuery->orWhereKey($searchOrderId))
+                        ->orWhereHas('items', function ($items) use ($search): void {
+                            $items->where('custom_product_name', 'like', '%'.$search.'%')
+                                ->orWhereHas('product', fn ($product) => $product->where('name', 'like', '%'.$search.'%'))
+                                ->orWhereHas('matchedProduct', fn ($product) => $product->where('name', 'like', '%'.$search.'%'));
+                        });
+                });
+            })
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -62,7 +92,7 @@ class StorePurchaseOrderController extends Controller
         $dateFromValue = $dateFrom->format('Y-m-d');
         $dateToValue = $dateTo->format('Y-m-d');
 
-        return view('modules.purchase-orders.user.index', compact('store', 'orders', 'status', 'statuses', 'workflowStatus', 'dateFromValue', 'dateToValue', 'technicalSupportSession'));
+        return view('modules.purchase-orders.user.index', compact('store', 'orders', 'status', 'statuses', 'workflowStatus', 'search', 'dateFromValue', 'dateToValue', 'technicalSupportSession'));
     }
 
     /**
@@ -96,13 +126,6 @@ class StorePurchaseOrderController extends Controller
     public function show(Store $store, StorePurchaseOrder $order)
     {
         $this->authorizeOrder($store, $order);
-        if (in_array($order->workflow_status, ['returned_for_edit', 'returned_after_edit', 'returned_for_count', 'returned_after_count'], true)) {
-            $message = 'حالة الطلبية: '.PurchaseOrderWorkflow::label($order->workflow_status, $store->user?->name);
-            if (trim((string) $order->inventory_review_note) !== '') {
-                $message .= ' — '.$order->inventory_review_note;
-            }
-            session()->flash('info', $message);
-        }
         $order->load(['items.product', 'items.matchedProduct', 'items.countAttempts', 'store', 'accountant', 'events']);
         PurchaseOrderItemSorter::sortLoadedItemsByName($order);
         // تحتاج نافذة الربط إلى الوصف أيضًا حتى يطابق بحث المنتجات الاسم أو الوصف.
@@ -110,7 +133,9 @@ class StorePurchaseOrderController extends Controller
         $categories = Category::where('store_id', $store->id)->orderBy('name')->get(['id', 'name']);
         $ownerPurchaseCategoryId = optional($categories->first(fn (Category $category) => trim($category->name) === 'مشتريات المالك'))->id;
         $whatsappText = $this->buildWhatsappText($order);
-        $currentBusinessDate = app(ShiftLifecycleService::class)->currentShiftContext($store->id)['business_date'];
+        $shiftLifecycle = app(ShiftLifecycleService::class);
+        $currentBusinessDate = $shiftLifecycle->currentShiftContext($store->id)['business_date'];
+        $openBusinessDates = $shiftLifecycle->openBusinessDates($store);
         $technicalSupportSession = app(SupportSessionService::class)->active(request());
         $receiptAccountantName = $order->accountant?->name;
         if (! $receiptAccountantName && $order->receipt_actor_type === 'accountant' && $order->receipt_actor_id) {
@@ -119,7 +144,7 @@ class StorePurchaseOrderController extends Controller
                 ->value('name');
         }
 
-        return view('modules.purchase-orders.user.show', compact('store', 'order', 'products', 'categories', 'ownerPurchaseCategoryId', 'whatsappText', 'currentBusinessDate', 'technicalSupportSession', 'receiptAccountantName'));
+        return view('modules.purchase-orders.user.show', compact('store', 'order', 'products', 'categories', 'ownerPurchaseCategoryId', 'whatsappText', 'currentBusinessDate', 'openBusinessDates', 'technicalSupportSession', 'receiptAccountantName'));
     }
 
     /**
@@ -487,8 +512,15 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         $validated = $request->validate([
             'business_date' => ['nullable', 'date_format:Y-m-d'],
         ]);
-        $businessDate = $validated['business_date']
-            ?? app(ShiftLifecycleService::class)->currentShiftContext($store->id)['business_date'];
+        $shiftLifecycle = app(ShiftLifecycleService::class);
+        $openBusinessDate = $shiftLifecycle->currentShiftContext($store->id)['business_date'];
+        $openBusinessDates = $shiftLifecycle->openBusinessDates($store);
+        $businessDate = $validated['business_date'] ?? $openBusinessDate;
+        if (! in_array($businessDate, $openBusinessDates, true)) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'business_date' => 'لا يمكن اعتماد الطلبية في هذا اليوم لأنه مقفل أو غير متاح. اختر أحد أيام العمل المفتوحة: '.implode('، ', $openBusinessDates).'.',
+            ]);
+        }
         $this->orders->approve($order, auth('web')->user(), $businessDate);
 
         return redirect()->route('user.stores.purchase-orders.index', $store->id)
@@ -527,22 +559,21 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         $this->authorizeOrder($store, $order);
         $support = app(SupportSessionService::class)->active($request);
         abort_unless($support && $support->target_role === 'owner', 403);
-        if ($order->approved_at || $order->approval_operation_id) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'workflow_status' => 'لا يمكن إعادة طلبية نُفذ اعتمادها المخزني إلى مرحلة سابقة. يمكن للدعم حذفها نهائيًا عند الحاجة.',
-            ]);
-        }
-
         $transitions = PurchaseOrderWorkflow::supportTransitions();
         $validated = $request->validate([
             'workflow_status' => ['required', Rule::in(array_keys($transitions))],
-            'support_note' => ['nullable', 'string', 'min:3', 'max:500'],
+            'support_note' => ['required', 'string', 'min:10', 'max:500'],
         ]);
-        $supportNote = trim((string) ($validated['support_note'] ?? ''))
-            ?: ('تذكرة الدعم '.$support->ticket_reference);
+        $supportNote = trim($validated['support_note']).' — تذكرة الدعم '.$support->ticket_reference;
 
         DB::transaction(function () use ($order, $validated, $transitions, $support, $supportNote): void {
             $lockedOrder = StorePurchaseOrder::whereKey($order->id)->lockForUpdate()->firstOrFail();
+            // يعاد فحص حماية الاعتماد بعد القفل لمنع تغيّر الطلبية بين الفحص والحفظ.
+            if ($lockedOrder->approved_at || $lockedOrder->approval_operation_id) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'workflow_status' => 'لا يمكن إعادة طلبية نُفذ اعتمادها المخزني إلى مرحلة سابقة. استخدم عملية عكس الاعتماد مع إبقاء سجلها.',
+                ]);
+            }
             $from = $lockedOrder->workflow_status;
             [$status, $workflowStatus] = $transitions[$validated['workflow_status']];
             $lockedOrder->update([
@@ -570,16 +601,19 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         abort_unless($support && $support->target_role === 'owner', 403);
         abort_unless((int) $order->store_id === (int) $store->id && (int) $store->user_id === (int) auth('web')->id(), 403);
         abort_unless($order->trashed(), 422, 'الطلبية غير محذوفة.');
+        $validated = $request->validate(['support_note' => ['required', 'string', 'min:10', 'max:500']]);
 
-        DB::transaction(function () use ($order, $support): void {
-            $order->restore();
-            $order->events()->create([
+        DB::transaction(function () use ($order, $support, $validated): void {
+            $lockedOrder = StorePurchaseOrder::withTrashed()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            abort_unless($lockedOrder->trashed(), 422, 'الطلبية غير محذوفة.');
+            $lockedOrder->restore();
+            $lockedOrder->events()->create([
                 'event' => 'support_restored',
                 'from_status' => 'deleted',
-                'to_status' => $order->workflow_status,
+                'to_status' => $lockedOrder->workflow_status,
                 'actor_type' => 'support',
                 'actor_id' => $support->admin_id,
-                'note' => 'تذكرة الدعم '.$support->ticket_reference,
+                'note' => trim($validated['support_note']).' — تذكرة الدعم '.$support->ticket_reference,
                 'data' => ['support_session_id' => $support->id],
             ]);
         });
@@ -594,10 +628,9 @@ public function pdf(Store $store, StorePurchaseOrder $order)
         abort_unless((int) $order->store_id === (int) $store->id && (int) $store->user_id === (int) auth('web')->id(), 403);
         $request->validate([
             'confirmation' => ['required', Rule::in([$order->referenceCode()])],
-            'support_note' => ['nullable', 'string', 'min:3', 'max:500'],
+            'support_note' => ['required', 'string', 'min:10', 'max:500'],
         ]);
-        $supportNote = trim((string) $request->input('support_note'))
-            ?: ('تذكرة الدعم '.$support->ticket_reference);
+        $supportNote = trim((string) $request->input('support_note')).' — تذكرة الدعم '.$support->ticket_reference;
 
         $orderName = $order->displayName();
         $orderId = $order->id;
@@ -607,6 +640,14 @@ public function pdf(Store $store, StorePurchaseOrder $order)
 
         DB::transaction(function () use ($order, $support): void {
             $lockedOrder = StorePurchaseOrder::withTrashed()->whereKey($order->id)->lockForUpdate()->firstOrFail();
+            // الحماية الحاسمة داخل القفل: لا يعتمد المنع على الحالة القديمة التي حملها Route Model Binding.
+            if (in_array($lockedOrder->status, ['received', 'approved'], true)) {
+                throw \Illuminate\Validation\ValidationException::withMessages([
+                    'order' => $lockedOrder->status === 'approved'
+                        ? 'لا تحذف الطلبية المعتمدة نهائيًا. استخدم عملية عكس الاعتماد مع إبقاء سجل التدقيق.'
+                        : 'لا يمكن حذف الطلبية المستلمة نهائيًا؛ يجب إبقاء سجل الاستلام للمراجعة.',
+                ]);
+            }
             $lockedOrder->forceDelete();
         });
 
@@ -622,6 +663,30 @@ public function pdf(Store $store, StorePurchaseOrder $order)
 
         return redirect()->route('user.stores.purchase-orders.index', $store->id)
             ->with('success', 'حذف الدعم التقني الطلبية وملفاتها التابعة نهائيًا دون حذف المنتجات أو حركات التوريد.');
+    }
+
+    public function supportReverse(Request $request, Store $store, StorePurchaseOrder $order)
+    {
+        $this->authorizeOrder($store, $order);
+        $support = app(SupportSessionService::class)->active($request);
+        abort_unless($support && $support->target_role === 'owner', 403);
+        $validated = $request->validate([
+            'confirmation' => ['required', Rule::in([$order->referenceCode()])],
+            'support_note' => ['required', 'string', 'min:10', 'max:500'],
+            'business_date' => ['required', 'date_format:Y-m-d'],
+        ]);
+        $openBusinessDate = app(ShiftLifecycleService::class)->currentShiftContext($store->id)['business_date'];
+        if ($validated['business_date'] !== $openBusinessDate) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'business_date' => 'تنفذ عملية العكس في اليوم المفتوح فقط: '.$openBusinessDate.'.',
+            ]);
+        }
+        $admin = $support->admin ?: \App\Models\User::withTrashed()->find($support->admin_id);
+        abort_unless($admin?->isAdmin(), 403);
+        $reason = trim($validated['support_note']).' — تذكرة الدعم '.$support->ticket_reference;
+        $this->orders->reverseApproval($order, $admin, $reason, $openBusinessDate);
+
+        return back()->with('success', 'تم عكس أثر اعتماد الطلبية مع إبقاء سجلها الكامل للمراجعة.');
     }
 
     /**

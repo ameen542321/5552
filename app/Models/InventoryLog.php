@@ -14,6 +14,7 @@ class InventoryLog extends Model
         'store_id',
         'user_id',
         'product_id',
+        'inventory_count_session_item_id',
         'product_name_snapshot',
         'quantity_change',
         'quantity_snapshot',
@@ -55,5 +56,10 @@ class InventoryLog extends Model
     public function product()
     {
         return $this->belongsTo(Product::class);
+    }
+
+    public function inventoryCountSessionItem()
+    {
+        return $this->belongsTo(InventoryCountSessionItem::class);
     }
 }
