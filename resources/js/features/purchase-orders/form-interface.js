@@ -18,7 +18,6 @@ if (root) {
         const existingCustomRows = config.existingCustomRows || [];
         const isEdit = Boolean(config.isEdit);
         const hasServerErrors = Boolean(config.hasServerErrors);
-        const serverError = String(config.serverError || '').trim();
         const hideInventoryValues = Boolean(config.hideInventoryValues);
         const skipConfirmation = Boolean(config.skipConfirmation);
         // المسودة معزولة بحسب المالك والمتجر، وتنتهي بعد سبعة أيام من آخر تعديل.
@@ -39,6 +38,11 @@ if (root) {
         const list = document.getElementById('orderItemsList');
         const orderRowsSearch = document.getElementById('orderRowsSearch');
         const orderRowsSearchCount = document.getElementById('orderRowsSearchCount');
+        const itemsCount = document.getElementById('purchaseOrderItemsCount');
+        const productsCount = document.getElementById('purchaseOrderProductsCount');
+        const customCount = document.getElementById('purchaseOrderCustomCount');
+        const incompleteCount = document.getElementById('purchaseOrderIncompleteCount');
+        const itemsEmpty = document.getElementById('purchaseOrderItemsEmpty');
 
         let rowIndex = 0;
         let customIndex = 0;
@@ -47,18 +51,6 @@ if (root) {
         let submissionInProgress = false;
 
         const money = new Intl.NumberFormat('ar-SA', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
-        if (serverError && typeof Swal !== 'undefined') {
-            Swal.fire({
-                title: 'تعذر حفظ الطلبية',
-                text: serverError,
-                icon: 'warning',
-                confirmButtonText: 'حسنًا',
-                background: '',
-                color: '',
-                confirmButtonColor: '',
-            });
-        }
 
         function draftSnapshot(pendingSubmission = false) {
             const productRows = [];
@@ -138,6 +130,17 @@ if (root) {
                 row.querySelectorAll('.js-row-num').forEach(el => el.textContent = sequenceNumber);
             });
             updateRowsSearch();
+            const customRows = rows.filter((row) => row.dataset.isCustom === 'true');
+            const incompleteRows = rows.filter((row) => {
+                const quantity = Number(row.querySelector('.js-input-qty')?.value || 0);
+                const nameMissing = row.dataset.isCustom === 'true' && !String(row.querySelector('.js-input-name')?.value || '').trim();
+                return nameMissing || quantity <= 0;
+            });
+            if (itemsCount) itemsCount.textContent = String(rows.length);
+            if (productsCount) productsCount.textContent = String(rows.length - customRows.length);
+            if (customCount) customCount.textContent = String(customRows.length);
+            if (incompleteCount) incompleteCount.textContent = String(incompleteRows.length);
+            itemsEmpty?.classList.toggle('hidden', rows.length > 0);
             scheduleDraftSave();
         }
 
@@ -377,7 +380,9 @@ if (root) {
                             ${hasUnitOptions ? unitField : ''}
                         </div>
                         <div class="flex flex-col gap-1">
-                            <input name="items[${idx}][receipt_notes]" maxlength="255" placeholder="ملاحظات إضافية إن وجدت (لون، مقاس...)" class="js-input-notes w-full h-full rounded-lg ui-surface-muted-bg border ui-border ui-title px-3 py-2.5 text-sm focus:outline-none ">
+                            <label class="ui-text-caption font-bold ui-text-soft">ملاحظة البند (اختياري)</label>
+                            <input name="items[${idx}][receipt_notes]" maxlength="255" placeholder="مثال: اللون الأسود، مقاس 40، موديل محدد" class="js-input-notes ui-input w-full h-full">
+                            <span class="ui-text-caption ui-text-muted">اكتب ما يساعد على شراء المنتج الصحيح، واتركها فارغة إذا لم توجد مواصفات إضافية.</span>
                         </div>
                     </div>
 
@@ -502,7 +507,11 @@ if (root) {
                             <input name="custom_items[${idx}][roll_length]" type="number" step="0.01" min="0.01" class="ui-input text-sm" placeholder="مثال: 30">
                         </label>
 
-                        <input name="custom_items[${idx}][receipt_notes]" maxlength="255" placeholder="ملاحظات إضافية (لون، مقاس...)" class="js-input-notes md:col-span-2 w-full rounded-lg ui-surface-muted-bg border ui-border ui-title px-3 py-2.5 text-sm focus:outline-none ">
+                        <label class="md:col-span-2">
+                            <span class="mb-1 block ui-text-caption font-bold ui-text-soft">ملاحظة البند (اختياري)</span>
+                            <input name="custom_items[${idx}][receipt_notes]" maxlength="255" placeholder="مثال: اللون الأسود، مقاس 40، موديل محدد" class="js-input-notes ui-input w-full">
+                            <span class="mt-1 block ui-text-caption ui-text-muted">اكتب ما يساعد على شراء المنتج الصحيح، واتركها فارغة إذا لم توجد مواصفات إضافية.</span>
+                        </label>
 
                         <label class="md:col-span-2 flex items-center gap-2 rounded-lg border ui-border ui-status-warning-bg px-3 py-2 text-sm ui-status-warning">
                             <input type="checkbox" name="custom_items[${idx}][add_to_owner_purchases]" value="1" class="h-4 w-4 rounded ui-border ui-surface-muted-bg ui-status-warning ">
@@ -816,8 +825,9 @@ if (root) {
         }
 
         const purchaseOrderForm = document.getElementById('purchaseOrderForm');
-        purchaseOrderForm?.addEventListener('input', scheduleDraftSave);
-        purchaseOrderForm?.addEventListener('change', scheduleDraftSave);
+        purchaseOrderForm?.addEventListener('input', updateRowNumbers);
+        purchaseOrderForm?.addEventListener('change', updateRowNumbers);
+        updateRowNumbers();
         window.addEventListener('beforeunload', () => saveDraft(submissionInProgress));
     });
 }

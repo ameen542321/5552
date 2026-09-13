@@ -10,6 +10,7 @@ use App\Modules\PurchaseOrders\Services\PurchaseOrderPdfService;
 use App\Modules\PurchaseOrders\Services\StorePurchaseOrderService;
 use App\Modules\PurchaseOrders\Services\PurchaseOrderNotificationService;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderItemSorter;
+use App\Modules\PurchaseOrders\Support\PurchaseOrderSearch;
 use App\Modules\PurchaseOrders\Support\PurchaseOrderWorkflow;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
@@ -32,6 +33,8 @@ class AccountantPurchaseOrderController extends Controller
         $status = in_array($request->get('status'), $statuses, true) ? $request->get('status') : null;
         $workflowStatuses = array_keys(PurchaseOrderWorkflow::filterLabels($store->user?->name));
         $workflowStatus = in_array($request->get('workflow_status'), $workflowStatuses, true) ? $request->get('workflow_status') : null;
+        $search = trim((string) $request->get('search', ''));
+        $searchOrderId = PurchaseOrderSearch::orderId($search);
         $dateFrom = $request->filled('date_from') ? $request->date('date_from')->startOfDay() : now()->startOfMonth();
         $dateTo = $request->filled('date_to') ? $request->date('date_to')->endOfDay() : now()->endOfMonth();
 
@@ -44,6 +47,17 @@ class AccountantPurchaseOrderController extends Controller
             ->whereBetween('created_at', [$dateFrom, $dateTo])
             ->when($status, fn ($query) => $query->where('status', $status))
             ->when($workflowStatus, fn ($query) => $query->where('workflow_status', $workflowStatus))
+            ->when($search !== '', function ($query) use ($search, $searchOrderId): void {
+                $query->where(function ($nested) use ($search, $searchOrderId): void {
+                    $nested->where('supplier_name', 'like', '%'.$search.'%')
+                        ->when($searchOrderId !== null, fn ($referenceQuery) => $referenceQuery->orWhereKey($searchOrderId))
+                        ->orWhereHas('items', function ($items) use ($search): void {
+                            $items->where('custom_product_name', 'like', '%'.$search.'%')
+                                ->orWhereHas('product', fn ($product) => $product->where('name', 'like', '%'.$search.'%'))
+                                ->orWhereHas('matchedProduct', fn ($product) => $product->where('name', 'like', '%'.$search.'%'));
+                        });
+                });
+            })
             ->latest()
             ->paginate(20)
             ->withQueryString();
@@ -53,6 +67,7 @@ class AccountantPurchaseOrderController extends Controller
             'orders' => $orders,
             'status' => $status,
             'workflowStatus' => $workflowStatus,
+            'search' => $search,
             'statuses' => $statuses,
             'dateFromValue' => $dateFrom->format('Y-m-d'),
             'dateToValue' => $dateTo->format('Y-m-d'),
@@ -115,7 +130,6 @@ class AccountantPurchaseOrderController extends Controller
     public function show(StorePurchaseOrder $order)
     {
         $store = $this->authorizeOrder($order);
-        $this->flashReturnedOrderStatus($order, $store->user?->name);
         $order->load(['items.product', 'items.matchedProduct', 'items.countAttempts', 'store', 'accountant', 'events']);
         PurchaseOrderItemSorter::sortLoadedItemsByName($order);
 
@@ -224,19 +238,6 @@ class AccountantPurchaseOrderController extends Controller
             'template_key' => 'purchase_order_review',
             'channel' => 'CARLED',
         ]);
-    }
-
-    private function flashReturnedOrderStatus(StorePurchaseOrder $order, ?string $ownerName): void
-    {
-        if (! in_array($order->workflow_status, ['returned_for_edit', 'returned_after_edit', 'returned_for_count', 'returned_after_count'], true)) {
-            return;
-        }
-
-        $message = 'حالة الطلبية: '.PurchaseOrderWorkflow::label($order->workflow_status, $ownerName);
-        if (trim((string) $order->inventory_review_note) !== '') {
-            $message .= ' — '.$order->inventory_review_note;
-        }
-        session()->flash('info', $message);
     }
 
     private function validatedOrderPayload(Request $request, Store $store): array

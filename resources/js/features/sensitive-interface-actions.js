@@ -2,7 +2,7 @@
 const actionHandlers = {
     'collection.open': (element) => window.openCollectionModal?.(element.dataset.employeeId, element.dataset.employeeName),
     'collection.close': () => window.closeCollectionModal?.(),
-    'collection.preview': (element) => window.openPreviewModal?.(JSON.parse(element.dataset.sale || '{}')),
+    'collection.preview': (element) => window.openPreviewModal?.(element.dataset.saleId),
     'collection.preview-close': () => window.closePreviewModal?.(),
     'collection.partial-open': (element) => window.openPartialModal?.(element.dataset.saleId, Number(element.dataset.amount)),
     'collection.partial-close': () => window.closePartialModal?.(),

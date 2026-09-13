@@ -6,6 +6,7 @@ use App\Models\Accountant;
 use App\Models\Employee;
 use App\Models\User;
 use App\Services\Employees\EmployeePayrollService;
+use App\Services\ShiftLifecycleService;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
@@ -21,6 +22,13 @@ final class EmployeeOperationPageViewModel
         $operationSummary = $this->operationSummary($person, $operationDetails, $periodStart, $periodEnd);
         $person?->loadMissing(['accountant', 'activeAccountant']);
         $personLabel = $person instanceof Employee && $person->activeAccountant ? 'المحاسب' : 'الموظف';
+        $openCreditCollectionDates = app(ShiftLifecycleService::class)->openBusinessDates((int) $person->store_id);
+        $openCreditCollectionDatesByStore = $operationDetails['credit_sales']
+            ->pluck('store_id')
+            ->filter()
+            ->unique()
+            ->mapWithKeys(fn ($storeId) => [(int) $storeId => app(ShiftLifecycleService::class)->openBusinessDates((int) $storeId)])
+            ->all();
 
         return [
             'employee' => $person,
@@ -32,6 +40,8 @@ final class EmployeeOperationPageViewModel
             'actionCards' => $this->actionCards($person, $selectedMonth),
             'recentLogs' => $this->paginatedLogs($operationDetails, $periodStart),
             'logActionMap' => $this->logActionMap(),
+            'openCreditCollectionDates' => $openCreditCollectionDates,
+            'openCreditCollectionDatesByStore' => $openCreditCollectionDatesByStore,
         ];
     }
 
@@ -43,22 +53,36 @@ final class EmployeeOperationPageViewModel
             : (float) ($person->salary ?? 0);
 
         if ($person instanceof Employee) {
-            $salaryInfo = $payrollService->salaryInfoWithSalaryChanges($person, $periodStart, $periodEnd);
+            $payrollRow = $payrollService
+                ->monthlyRowsForStore((int) $person->store_id, $periodStart->format('Y-m'), $periodStart, $periodEnd)
+                ->firstWhere('id', $person->id);
+            $salaryInfo = [
+                'payable_salary' => (float) ($payrollRow['salary'] ?? 0),
+                'worked_days' => (int) ($payrollRow['worked_days'] ?? 0),
+                'suspended_days' => (int) ($payrollRow['suspended_days'] ?? 0),
+            ];
         } else {
             $salaryInfo = ['payable_salary' => $historicalSalary];
         }
 
+        $currentStoreOperations = fn (Collection $operations) => $operations->where('store_id', (int) $person->store_id);
+        $currentWithdrawals = $currentStoreOperations($details['withdrawals']);
+        // المديونية الشخصية المفتوحة تتبع الموظف بعد النقل، بينما يبقى أصل القيد ظاهرًا باسم متجر حدوثه.
+        $currentDebts = $details['debts'];
+        $currentCreditSales = $currentStoreOperations($details['credit_sales']);
+        $currentAbsences = $currentStoreOperations($details['absences']);
+
         return [
-            'withdrawals_total' => $details['withdrawals']->sum('amount'),
+            'withdrawals_total' => $currentWithdrawals->sum('amount'),
             'salary_payable' => (float) ($salaryInfo['payable_salary'] ?? 0),
             'historical_salary' => $historicalSalary,
             'worked_days' => (int) ($salaryInfo['worked_days'] ?? $periodStart->daysInMonth),
             'suspended_days' => (int) ($salaryInfo['suspended_days'] ?? 0),
-            'debts_total' => $details['debts']->where('amount', '>', 0)->sum('amount'),
-            'debt_collections_total' => abs((float) $details['debts']->where('amount', '<', 0)->sum('amount')),
-            'credit_remaining_total' => $details['credit_sales']->sum('remaining_amount'),
-            'credit_sales_total' => $details['credit_sales']->sum('amount'),
-            'absences_count' => $details['absences']->count(),
+            'debts_total' => $currentDebts->where('amount', '>', 0)->sum('amount'),
+            'debt_collections_total' => abs((float) $currentDebts->where('amount', '<', 0)->sum('amount')),
+            'credit_remaining_total' => $currentCreditSales->sum('remaining_amount'),
+            'credit_sales_total' => $currentCreditSales->sum('amount'),
+            'absences_count' => $currentAbsences->count(),
         ];
     }
 
@@ -158,39 +182,41 @@ final class EmployeeOperationPageViewModel
     {
         return [
             'withdrawals' => $person->withdrawals()
-                ->with('addedBy:id,name')
+                ->with(['addedBy:id,name', 'store:id,name'])
                 ->betweenAccountingDates($periodStart, $periodEnd)
                 ->orderByRaw('COALESCE(business_date, date, DATE(created_at))')
-                ->get()->each(fn ($operation) => $this->decorateOperationRow($operation)),
+                ->get()->each(fn ($operation) => $this->decorateOperationRow($operation, (int) $person->store_id)),
             'debts' => $person->debts()
-                ->with('addedBy:id,name')
+                ->with(['addedBy:id,name', 'store:id,name'])
                 // المديونية سجل تراكمي لا يرتبط بالشهر المحدد؛ نعرض العمليات القائمة والتحصيلات من الأحدث للأقدم.
                 ->where('amount', '!=', 0)
                 ->orderByRaw('COALESCE(date, DATE(created_at)) DESC')
                 ->orderByDesc('id')
-                ->get()->each(fn ($operation) => $this->decorateOperationRow($operation)),
+                ->get()->each(fn ($operation) => $this->decorateOperationRow($operation, (int) $person->store_id)),
             'credit_sales' => $person->creditSales()
-                ->with('addedBy:id,name')
+                ->with(['addedBy:id,name', 'store:id,name'])
                 // نظام الأجل تراكمي ولا يتبع فلتر الشهر؛ تظهر العمليات القائمة فقط حتى تُسوى أو تُحذف.
                 ->where('remaining_amount', '>', 0)
                 ->where('status', '!=', \App\Models\CreditSale::STATUS_DEDUCTED)
                 ->orderByRaw('COALESCE(date, DATE(created_at)) DESC')
                 ->orderByDesc('id')
-                ->get()->each(fn ($operation) => $this->decorateOperationRow($operation)),
+                ->get()->each(fn ($operation) => $this->decorateOperationRow($operation, (int) $person->store_id)),
             'absences' => $person->absences()
-                ->with('addedBy:id,name')
+                ->with(['addedBy:id,name', 'store:id,name'])
                 ->betweenOperationDates($periodStart, $periodEnd)
                 ->orderByRaw('COALESCE(date, DATE(created_at))')
-                ->get()->each(fn ($operation) => $this->decorateOperationRow($operation)),
+                ->get()->each(fn ($operation) => $this->decorateOperationRow($operation, (int) $person->store_id)),
         ];
     }
 
 
-    private function decorateOperationRow($operation): void
+    private function decorateOperationRow($operation, int $currentStoreId): void
     {
         $operation->setAttribute('executed_by_name', $this->actorNameForOperation($operation));
         $accountingDate = $operation->business_date ?? $operation->date ?? $operation->created_at ?? null;
         $operation->setAttribute('accounting_date_display', $accountingDate ? Carbon::parse($accountingDate)->format('Y-m-d') : null);
+        $operation->setAttribute('is_historical_store_operation', $currentStoreId > 0 && (int) $operation->store_id !== $currentStoreId);
+        $operation->setAttribute('operation_store_name', $operation->store?->name ?? 'متجر سابق');
     }
 
     private function paginatedLogs(array $details, Carbon $periodStart): LengthAwarePaginator

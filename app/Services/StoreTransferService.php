@@ -110,12 +110,20 @@ class StoreTransferService
             $lockedTransfer->load(['senderStore', 'receiverStore', 'items.senderProduct']);
             $this->ensureActorCanReceiveTransfer($actor, $lockedTransfer, $ownerOverride);
 
+            $missingReceiverProducts = $lockedTransfer->items->filter(function (StoreTransferItem $item) use ($receiverProductIds): bool {
+                return (int) ($receiverProductIds[$item->id] ?? $receiverProductIds[$item->sender_product_id] ?? 0) <= 0;
+            });
+            if ($missingReceiverProducts->isNotEmpty()) {
+                $names = $missingReceiverProducts
+                    ->map(fn (StoreTransferItem $item) => $item->product_name_snapshot ?: $item->senderProduct?->name ?: 'بند رقم '.$item->id)
+                    ->implode('، ');
+                throw ValidationException::withMessages([
+                    'receiver_product_id' => 'لم يكتمل ربط جميع بنود النقل. اختر المنتج المستلم مقابل: '.$names.'.',
+                ]);
+            }
+
             foreach ($lockedTransfer->items as $item) {
                 $receiverProductId = (int) ($receiverProductIds[$item->id] ?? $receiverProductIds[$item->sender_product_id] ?? 0);
-                if ($receiverProductId <= 0) {
-                    throw ValidationException::withMessages(['receiver_product_id' => 'يجب اختيار المنتج المقابل في المتجر المستلم قبل الموافقة.']);
-                }
-
                 $receiverProduct = Product::query()->sellable()->whereKey($receiverProductId)->lockForUpdate()->firstOrFail();
                 $this->ensureProductBelongsToStore($receiverProduct, $lockedTransfer->receiverStore);
 
@@ -169,40 +177,6 @@ class StoreTransferService
     public function cancelTransfer(StoreTransfer $transfer, Model $actor, ?string $businessDate = null): StoreTransfer
     {
         return $this->returnTransferToSender($transfer, $actor, self::STATUS_CANCELLED, null, $businessDate);
-    }
-
-    public function suggestReceiverProducts(StoreTransferItem $item, int $receiverStoreId, int $limit = 8)
-    {
-        $item->loadMissing('senderProduct');
-        $sender = $item->senderProduct;
-
-        if (!$sender) {
-            return collect();
-        }
-
-        return Product::query()
-            ->where('store_id', $receiverStoreId)
-            ->sellable()
-            ->where(function ($query) use ($sender) {
-                if ($sender->barcode) {
-                    $query->orWhere('barcode', $sender->barcode);
-                }
-
-                $query->orWhere('name', $sender->name)
-                    ->orWhere('name', 'like', '%' . $sender->name . '%');
-
-                foreach ($this->nameTokens($sender->name) as $token) {
-                    $query->orWhere('name', 'like', '%' . $token . '%');
-                }
-
-                if ($sender->category_id) {
-                    $query->orWhere('category_id', $sender->category_id);
-                }
-            })
-            ->orderByRaw('CASE WHEN name = ? THEN 0 ELSE 1 END', [$sender->name])
-            ->orderBy('name')
-            ->limit($limit)
-            ->get(['id', 'name', 'quantity', 'barcode', 'category_id']);
     }
 
     public function markSeen(StoreTransfer $transfer, Accountant $accountant): StoreTransfer
@@ -359,13 +333,4 @@ class StoreTransferService
         return $actor instanceof User ? (int) $actor->id : null;
     }
 
-    private function nameTokens(string $name): array
-    {
-        return collect(preg_split('/\s+/u', trim($name)) ?: [])
-            ->filter(fn ($token) => mb_strlen($token) >= 3)
-            ->unique()
-            ->take(5)
-            ->values()
-            ->all();
-    }
 }

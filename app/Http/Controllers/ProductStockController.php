@@ -30,8 +30,15 @@ class ProductStockController extends Controller
         $inventoryAuditStatus = $product->inventoryAuditStatus($store);
         $latestInventoryAudit = $product->inventoryLogs()
             ->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)
+            ->with('inventoryCountSessionItem.session')
             ->latest()
             ->first();
+        $inventoryCountHistory = $product->inventoryLogs()
+            ->where('type', Product::INVENTORY_AUDIT_CONFIRMED_TYPE)
+            ->with('inventoryCountSessionItem.session')
+            ->latest()
+            ->limit(10)
+            ->get();
         $currentBusinessDate = app(ShiftLifecycleService::class)->currentShiftContext($store->id)['business_date'];
         $isTechnicalSupport = app(SupportSessionService::class)->active() !== null;
         $monthStart = \Carbon\Carbon::parse($currentBusinessDate)->startOfMonth();
@@ -51,8 +58,14 @@ class ProductStockController extends Controller
             : null;
         $canConfirmAudit = $inventoryAuditStatus['can_confirm'] && ($isTechnicalSupport || ! $monthlyConfirmation);
         $canCancelAudit = (bool) ($isTechnicalSupport ? $supportCancelableConfirmation : $monthlyConfirmation);
+        $stockReturnUrl = route('user.stores.products.index', $store->id);
+        if (request('return_to') === 'audit') {
+            $stockReturnUrl = route('user.stores.products.audit', $store->id);
+        } elseif (request('return_to') === 'inventory-count' && request()->filled('inventory_count')) {
+            $stockReturnUrl = route('user.stores.inventory-counts.show', [$store->id, request('inventory_count')]);
+        }
 
-        return view('user.stores.products.stock.index', compact('store', 'product', 'movements', 'inventoryAuditStatus', 'latestInventoryAudit', 'currentBusinessDate', 'isTechnicalSupport', 'canConfirmAudit', 'canCancelAudit'));
+        return view('user.stores.products.stock.index', compact('store', 'product', 'movements', 'inventoryAuditStatus', 'latestInventoryAudit', 'inventoryCountHistory', 'currentBusinessDate', 'isTechnicalSupport', 'canConfirmAudit', 'canCancelAudit', 'stockReturnUrl'));
     }
 
     public function confirmAudit(Request $request, Store $store, Product $product)

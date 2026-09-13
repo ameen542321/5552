@@ -330,13 +330,27 @@ class EmployeePayrollService
             return collect();
         }
 
-        return Debt::where('store_id', $storeId)
-            ->where('person_type', Employee::class)
-            ->whereIn('person_id', $employeeIds)
-            ->betweenOperationDates($periodStart, $periodEnd)
-            ->selectRaw('person_id, COALESCE(SUM(amount), 0) as total')
-            ->groupBy('person_id')
-            ->pluck('total', 'person_id');
+        $employees = Employee::withTrashed()->whereIn('id', $employeeIds)->get(['id', 'store_id']);
+
+        return $employees->mapWithKeys(function (Employee $employee) use ($storeId, $periodEnd) {
+            if ($this->historicalStores->employeeStoreIdAtPeriodEnd($employee, $periodEnd) !== $storeId) {
+                return [$employee->id => 0.0];
+            }
+
+            $total = Debt::query()
+                ->where('person_type', Employee::class)
+                ->where('person_id', $employee->id)
+                ->where('status', Debt::STATUS_PENDING)
+                ->where('amount', '>', 0)
+                ->where(function ($query) use ($periodEnd) {
+                    $endDate = Carbon::parse($periodEnd)->toDateString();
+                    $query->whereDate('date', '<=', $endDate)
+                        ->orWhere(fn ($fallback) => $fallback->whereNull('date')->whereDate('created_at', '<=', $endDate));
+                })
+                ->sum('amount');
+
+            return [$employee->id => (float) $total];
+        });
     }
 
     private function creditRemainingByEmployee(int $storeId, Collection $employeeIds, $periodStart, $periodEnd): Collection

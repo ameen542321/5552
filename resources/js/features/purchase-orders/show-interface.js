@@ -38,9 +38,10 @@ if (root) {
             ? `purchase-order-receipt-review:${receiptReviewForm.dataset.orderId}`
             : null;
         const storedReceiptFilter = receiptReviewStoragePrefix ? sessionStorage.getItem(`${receiptReviewStoragePrefix}:filter`) : null;
+        const hasAttentionFilter = receiptFilterButtons.some((button) => button.dataset.receiptFilter === 'attention');
         let activeReceiptFilter = storedReceiptFilter && receiptFilterButtons.some((button) => button.dataset.receiptFilter === storedReceiptFilter)
             ? storedReceiptFilter
-            : 'all';
+            : (hasAttentionFilter ? 'attention' : 'all');
         if (receiveItemsSearch && receiptReviewStoragePrefix) {
             receiveItemsSearch.value = sessionStorage.getItem(`${receiptReviewStoragePrefix}:search`) || '';
         }
@@ -602,6 +603,7 @@ if (root) {
         });
 
         const approveOrderForm = document.getElementById('approveOrderForm');
+        const approvalSummary = config.approvalSummary || {};
         const approveStorageKey = approveOrderForm ? `purchase-order-approval-pending-${approveOrderForm.dataset.orderId}` : null;
 
         if (approveStorageKey && config.orderStatus === 'approved') {
@@ -626,7 +628,9 @@ if (root) {
             }
 
             if (typeof Swal === 'undefined') {
-                if (window.confirm('تأكد من البيانات والكميات المدخلة. لا يمكن التراجع عن هذه الخطوة.')) {
+                const inventoryItems = Number(approvalSummary.inventory_items || 0);
+                const ownerItems = Number(approvalSummary.owner_purchase_items || 0);
+                if (window.confirm(`سيضاف ${inventoryItems} منتج للمخزون، وسيسجل ${ownerItems} بند ضمن مشتريات المالك. تأكد من البيانات؛ لا يمكن التراجع عن هذه الخطوة.`)) {
                     lockApproveForm(form);
                     form.submit();
                 }
@@ -655,9 +659,22 @@ if (root) {
                 costChangesHtml = '<div class="mt-4 text-sm ui-text-muted ui-surface-muted-bg p-3 rounded-lg border ui-border">لا توجد منتجات محددة لتحديث تكلفتها في النظام.</div>';
             }
 
+            const selectedBusinessDate = form.querySelector('[name="business_date"]')?.value || approvalSummary.business_date || 'غير محدد';
+            const approvalSummaryHtml = `
+                <div class="ui-card-muted p-3 mt-4 text-right">
+                    <strong class="ui-title block mb-2">ملخص أثر الاعتماد</strong>
+                    <div class="grid grid-cols-2 gap-2 ui-text-caption">
+                        <span class="ui-text-soft">منتجات ستضاف للمخزون</span><strong>${Number(approvalSummary.inventory_items || 0)}</strong>
+                        <span class="ui-text-soft">بنود مشتريات المالك</span><strong>${Number(approvalSummary.owner_purchase_items || 0)}</strong>
+                        <span class="ui-text-soft">إجمالي تكلفة الاستلام</span><strong>${Number(approvalSummary.received_total || 0).toFixed(2)} ر.س</strong>
+                        <span class="ui-text-soft">فرق التكلفة</span><strong>${Number(approvalSummary.variance_total || 0).toFixed(2)} ر.س</strong>
+                        <span class="ui-text-soft">يوم العمل</span><strong>${selectedBusinessDate}</strong>
+                    </div>
+                </div>`;
+
             const result = await Swal.fire({
                 title: 'تأكيد الاعتماد المخزني',
-                html: `<div class="ui-text-soft text-sm">تأكد من البيانات والكميات المدخلة. لا يمكن التراجع عن هذه الخطوة.</div> ${costChangesHtml}`,
+                html: `<div class="ui-text-soft text-sm">تأكد من البيانات والكميات المدخلة. لا يمكن التراجع عن هذه الخطوة.</div>${approvalSummaryHtml}${costChangesHtml}`,
                 icon: 'warning',
                 showCancelButton: true,
                 buttonsStyling: false,

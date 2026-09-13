@@ -65,6 +65,7 @@ Route::middleware(['web', 'auth', 'is.admin'])
             ->name('health.debt');
         Route::get('/health/purchase-orders', [PurchaseOrderHealthCheckController::class, 'index'])
             ->name('health.purchase-orders');
+        // متابعة الطلبيات وإعداد حدودها محصورة داخل مجموعة middleware الخاصة بالأدمن.
         Route::get('/purchase-orders', [PurchaseOrderManagementController::class, 'index'])->name('purchase-orders.index');
         Route::patch('/purchase-orders/limits/global', [PurchaseOrderManagementController::class, 'updateGlobalLimit'])->name('purchase-orders.limits.global');
         Route::patch('/purchase-orders/limits/stores', [PurchaseOrderManagementController::class, 'updateStoreLimit'])->name('purchase-orders.limits.store');

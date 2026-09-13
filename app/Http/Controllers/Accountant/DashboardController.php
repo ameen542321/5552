@@ -25,6 +25,7 @@ use App\Services\Accounting\AccountingOperationFeedService;
 use App\Services\Shifts\ShiftGapInfoService;
 use App\Services\Shifts\ShiftOperationBinderService;
 use App\Modules\PurchaseOrders\Models\StorePurchaseOrder;
+use App\Models\InventoryCountSession;
 
 class DashboardController extends Controller
 {
@@ -41,6 +42,10 @@ class DashboardController extends Controller
             ->whereIn('workflow_status', ['returned_for_edit', 'returned_for_count', 'pending_receipt_confirmation'])
             ->latest('updated_at')
             ->limit(5)
+            ->get();
+        $pendingInventoryCountSessions = InventoryCountSession::where('accountant_id', $accountant->id)
+            ->whereIn('status', ['sent_to_accountant', 'counting', 'returned_to_accountant'])
+            ->latest('updated_at')
             ->get();
         $lastBalance = null;
 
@@ -217,7 +222,7 @@ class DashboardController extends Controller
                 'requiresSecondShiftConfirmation', 'canChooseNextShiftBusinessDate',
                 'nextBusinessDateAfterCurrent', 'missingBusinessDates',
                 'pendingShiftGapRequests', 'activeShiftGapBusinessDate', 'isShiftGapProcessing',
-                'accountantFinanceMovements', 'pendingPurchaseOrderAlerts'
+                'accountantFinanceMovements', 'pendingPurchaseOrderAlerts', 'pendingInventoryCountSessions'
             ));
 
         } catch (\Exception $e) {
@@ -932,7 +937,15 @@ class DashboardController extends Controller
                 fn ($query) => $query->whereBetween('created_at', [$startTime, $endTime])
             )
             ->whereIn('action_name', ['debt', 'debt_collect_full', 'debt_collect_partial', 'credit_sale_deducted', 'credit_sale_partial'])
-            ->where('meta->actor_type', 'accountant')
+            ->where(function ($query) {
+                $query->where('meta->actor_type', 'accountant')
+                    // تحصيل المالك دخل فعلي للمتجر ويجب أن يظهر للمحاسب في يوم تسجيله،
+                    // دون إدخال بقية عمليات المالك ضمن حركات المحاسب.
+                    ->orWhere(function ($ownerCollectionQuery) {
+                        $ownerCollectionQuery->where('meta->actor_type', 'user')
+                            ->whereIn('action_name', ['credit_sale_deducted', 'credit_sale_partial']);
+                    });
+            })
             ->with(['person'])
             ->orderBy('created_at')
             ->get();

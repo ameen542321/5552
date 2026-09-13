@@ -37,6 +37,7 @@ if (/rounded-2xl\s+bg-black\s+border\s+ui-border/.test(shiftGapsView)) {
     failures.push('shift gap operation counters: raw black backgrounds must not replace theme surfaces');
 }
 const printBladeFile = (filePath) => filePath.includes('/pdf/')
+    || filePath.endsWith('/pdf.blade.php')
     || filePath.includes('/emails/')
     || filePath.endsWith('/print.blade.php')
     || filePath.endsWith('/invoice-print.blade.php')
@@ -1246,10 +1247,8 @@ if (productCatalogScript.includes('innerHTML') || !productCatalogScript.includes
 const stockViewFile = 'resources/views/user/stores/products/stock/index.blade.php';
 const stockView = fs.readFileSync(stockViewFile, 'utf8');
 for (const stockRequestContract of [
-    "route('user.stores.products.stock.audit-confirm'",
     "route('user.stores.products.stock.increase'",
     "route('user.stores.products.stock.decrease'",
-    'name="audit_note"',
     'name="quantity"',
     'name="unit_type"',
     'name="note"',

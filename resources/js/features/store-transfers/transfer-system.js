@@ -73,7 +73,8 @@ const filterProductPicker = (productPicker) => {
     let visibleOptionCount = 0;
 
     pickerOptions.forEach((pickerOption) => {
-        const matchesSearch = !searchTerm || pickerOption.dataset.label.toLowerCase().includes(searchTerm);
+        const searchableText = (pickerOption.dataset.search || pickerOption.dataset.label || '').toLowerCase();
+        const matchesSearch = !searchTerm || searchableText.includes(searchTerm);
         pickerOption.classList.toggle('hidden', !matchesSearch);
         if (matchesSearch) visibleOptionCount += 1;
     });

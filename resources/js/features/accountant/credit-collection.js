@@ -4,6 +4,12 @@ const root = document.querySelector('[data-credit-collection-config]');
 if (root) {
     const config = JSON.parse(root.dataset.creditCollectionConfig || '{}');
     const allSales = config.sales || {};
+    const salesById = Object.values(allSales)
+        .flatMap((sales) => Array.isArray(sales) ? sales : [])
+        .reduce((index, sale) => {
+            index[String(sale.id)] = sale;
+            return index;
+        }, {});
 
     function escapeHtml(value) {
         const div = document.createElement('div');
@@ -61,7 +67,7 @@ if (root) {
                     <div class="ui-text-soft ui-text-meta mb-2">${amountLabel}: <span class="ui-status-warning font-bold">${shownAmount} ريال</span></div>
                     <div class="flex gap-1.5">
                         <!-- تُقرأ بيانات العملية من الوحدة المركزية بدل إنشاء onclick داخل القالب الديناميكي. -->
-                        <button type="button" data-sensitive-action="collection.preview" data-sale="${escapeHtml(JSON.stringify(sale))}"
+                        <button type="button" data-sensitive-action="collection.preview" data-sale-id="${sale.id}"
                                 class="flex-1 ui-btn ui-btn-info text-sm py-2 rounded-lg">
                             معاينة
                         </button>
@@ -155,7 +161,15 @@ if (root) {
             `).join('');
     }
 
-    function openPreviewModal(sale) {
+    function openPreviewModal(saleId) {
+        const sale = typeof saleId === 'object' && saleId !== null
+            ? saleId
+            : salesById[String(saleId)];
+        if (!sale) {
+            showCollectionToast('error', 'تعذر العثور على بيانات عملية الأجل.');
+            return;
+        }
+
         document.getElementById('collectionModal')?.classList.add('ui-modal-suspended');
         const linked = sale.linked_sale || null;
         const mixedTotal = linked ? Number(linked.cash_amount || 0) + Number(linked.card_amount || 0) : 0;
@@ -163,7 +177,15 @@ if (root) {
         const collectedAmount = Math.max(0, creditAmount - Number(sale.remaining_amount || 0));
 
         // تاريخ العملية يعرض أولًا، بينما تواريخ التحصيلات تظهر في سجلها المستقل أدناه.
-        document.getElementById('previewContent').innerHTML = `
+        const previewContent = document.getElementById('previewContent');
+        const previewModal = document.getElementById('previewModal');
+        if (!previewContent || !previewModal) {
+            document.getElementById('collectionModal')?.classList.remove('ui-modal-suspended');
+            showCollectionToast('error', 'تعذر فتح نافذة المعاينة.');
+            return;
+        }
+
+        previewContent.innerHTML = `
             <div class="ui-card-muted p-3 space-y-2">
                 <div class="flex items-center justify-between gap-2">
                     <div class="ui-title text-sm font-bold">${escapeHtml(sale.credit_note || 'أجل بدون ملاحظة')}</div>
@@ -209,7 +231,7 @@ if (root) {
             </div>
         `;
 
-        document.getElementById('previewModal').classList.remove('hidden');
+        previewModal.classList.remove('hidden');
     }
 
     function closePreviewModal() {

@@ -33,15 +33,16 @@ class StoreTransferController extends Controller
 
         $receiverStoreIds = $transfers->getCollection()->pluck('receiver_store_id')->unique();
         $receiverProductsByStore = Product::whereIn('store_id', $receiverStoreIds)
+            ->sellable()
             ->orderBy('name')
             ->get(['id', 'store_id', 'name', 'quantity', 'barcode', 'category_id'])
             ->groupBy('store_id');
 
         $transfers->getCollection()->each(function (StoreTransfer $transfer) use ($receiverProductsByStore) {
-            $fallback = $receiverProductsByStore->get($transfer->receiver_store_id, collect());
-            $transfer->items->each(function ($item) use ($transfer, $fallback) {
-                $suggestions = $this->transfers->suggestReceiverProducts($item, $transfer->receiver_store_id);
-                $item->setRelation('receiverSuggestions', $suggestions->isNotEmpty() ? $suggestions : $fallback->take(8));
+            $receiverProducts = $receiverProductsByStore->get($transfer->receiver_store_id, collect());
+            $transfer->items->each(function ($item) use ($receiverProducts) {
+                // يعرض الباحث كل منتجات البيع في المتجر المستلم، وليس قائمة اقتراحات محدودة.
+                $item->setRelation('receiverSuggestions', $receiverProducts);
             });
         });
 

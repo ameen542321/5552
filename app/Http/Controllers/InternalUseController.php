@@ -48,6 +48,7 @@ class InternalUseController extends Controller
                 'product_type',
                 'is_splittable',
                 'items_per_unit',
+                'quick_sale_default_unit',
                 'roll_length',
                 'waste_percentage',
                 'piece_price'

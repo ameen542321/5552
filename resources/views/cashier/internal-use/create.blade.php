@@ -152,14 +152,14 @@
                     <div class="space-y-2">
                         <label class="text-sm font-medium ui-text-muted">وحدة الخصم</label>
                         <div class="grid grid-cols-2 gap-2">
-                            <label class="flex items-center gap-2 p-3 ui-surface-muted-bg border ui-border rounded-lg cursor-pointer transition"
-                                   :class="{'ui-border': unitType === 'kit'}">
+                            <label class="ui-unit-choice flex items-center gap-2 p-3 rounded-lg cursor-pointer transition"
+                                   :class="{'is-selected': unitType === 'kit'}">
                                 <input type="radio" x-model="unitType" value="kit" class="sr-only">
                                 <i class="fa-solid fa-cubes ui-status-info"></i>
                                 <span class="text-sm ui-title">طقم كامل</span>
                             </label>
-                            <label class="flex items-center gap-2 p-3 ui-surface-muted-bg border ui-border rounded-lg cursor-pointer transition"
-                                   :class="{'ui-border': unitType === 'piece'}">
+                            <label class="ui-unit-choice flex items-center gap-2 p-3 rounded-lg cursor-pointer transition"
+                                   :class="{'is-selected': unitType === 'piece'}">
                                 <input type="radio" x-model="unitType" value="piece" class="sr-only">
                                 <i class="fa-solid fa-cube ui-status-info"></i>
                                 <span class="text-sm ui-title">حبة</span>
@@ -173,14 +173,14 @@
                     <div class="space-y-2">
                         <label class="text-sm font-medium ui-text-muted">وحدة القياس</label>
                         <div class="grid grid-cols-2 gap-2">
-                            <label class="flex items-center gap-2 p-3 ui-surface-muted-bg border ui-border rounded-lg cursor-pointer transition"
-                                   :class="{'ui-border': unitType === 'roll'}">
+                            <label class="ui-unit-choice flex items-center gap-2 p-3 rounded-lg cursor-pointer transition"
+                                   :class="{'is-selected': unitType === 'roll'}">
                                 <input type="radio" x-model="unitType" value="roll" class="sr-only">
                                 <i class="fa-solid fa-roll-forward ui-status-info"></i>
                                 <span class="text-sm ui-title">رول</span>
                             </label>
-                            <label class="flex items-center gap-2 p-3 ui-surface-muted-bg border ui-border rounded-lg cursor-pointer transition"
-                                   :class="{'ui-border': unitType === 'meters'}">
+                            <label class="ui-unit-choice flex items-center gap-2 p-3 rounded-lg cursor-pointer transition"
+                                   :class="{'is-selected': unitType === 'meters'}">
                                 <input type="radio" x-model="unitType" value="meters" class="sr-only">
                                 <i class="fa-solid fa-ruler ui-status-info"></i>
                                 <span class="text-sm ui-title">أمتار</span>

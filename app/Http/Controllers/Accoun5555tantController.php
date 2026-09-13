@@ -15,6 +15,9 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Carbon;
 use App\Http\Controllers\Employees\EmployeeService;
+use App\Services\Employees\EmployeeAccountantLifecycleService;
+use App\Services\Employees\EmployeeTransferService;
+use Illuminate\Validation\ValidationException;
 
 class AccountantController extends Controller
 {
@@ -345,31 +348,15 @@ if (!$employee->user_id) {
             }
 
             if ($oldEmployeeStoreId && (int) $oldEmployeeStoreId !== (int) $store->id) {
-                EmployeeService::transferEmployeeFinancialRecordsToStore($accountant->employee, (int) $store->id, true);
-
                 $oldStore = Store::find($oldEmployeeStoreId);
-                $newStore = $accountant->employee->store;
 
-                if ($oldStore && $newStore) {
-                    $transferLog = \App\Services\EmployeeLogService::add(
+                if ($oldStore) {
+                    app(EmployeeTransferService::class)->finalizeMovedEmployee(
                         $accountant->employee,
-                        'employee_transferred',
-                        "تم نقل الموظف المرتبط بالمحاسب من متجر {$oldStore->name} إلى متجر {$newStore->name} أثناء تعديل بيانات المحاسب.",
-                        null,
-                        [
-                            'old_store_id' => $oldStore->id,
-                            'old_store_name' => $oldStore->name,
-                            'new_store_id' => $newStore->id,
-                            'new_store_name' => $newStore->name,
-                            'effective_date' => $transferEffectiveDate?->toDateString(),
-                            'changed_from_accountant_profile' => true,
-                            'active_accountant_suspended' => true,
-                        ]
+                        $oldStore,
+                        $transferEffectiveDate,
+                        'accountant_profile',
                     );
-
-                    if ($transferLog && $transferEffectiveDate) {
-                        $transferLog->forceFill(['created_at' => $transferEffectiveDate])->save();
-                    }
                 }
             }
         }
@@ -440,15 +427,15 @@ if (!$employee->user_id) {
     {
         $accountant = Accountant::with('employee')->forUserStores()->findOrFail($id);
 
-        if (!$accountant->employee || $accountant->employee->status !== 'active') {
-            return back()->with('error', 'لا يمكن تفعيل حساب المحاسب لأن الموظف المرتبط به غير فعال.');
+        if (! $accountant->employee) {
+            return back()->with('error', 'لا يمكن تفعيل حساب محاسب غير مرتبط بموظف.');
         }
 
-        if ((int) $accountant->employee->store_id !== (int) $accountant->store_id) {
-            return back()->with('error', 'لا يمكن تفعيل حساب المحاسب لأن الموظف المرتبط به ليس على نفس متجر حساب المحاسب. رقّه من المتجر الجديد لإنشاء/تفعيل حساب صحيح هناك.');
+        try {
+            app(EmployeeAccountantLifecycleService::class)->activateForEmployee($accountant, $accountant->employee);
+        } catch (ValidationException $exception) {
+            return back()->with('error', collect($exception->errors())->flatten()->first());
         }
-
-        $accountant->update(['status' => 'active']);
 
         // ⭐ مسح القيود باستخدام الإيميل فقط
         $throttleKey = Str::lower($accountant->email);

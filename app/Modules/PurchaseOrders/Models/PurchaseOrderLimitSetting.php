@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 
 class PurchaseOrderLimitSetting extends Model
 {
+    // يبقى السلوك الافتراضي مطابقًا للحد السابق حتى قبل تخصيص أي متجر.
     public const DEFAULT_WEEKLY_LIMIT = 4;
     public const DEFAULT_COUNTED_STATUSES = ['draft', 'sent', 'received', 'approved'];
 
@@ -35,6 +36,7 @@ class PurchaseOrderLimitSetting extends Model
 
     public function effectiveWeeklyLimit(): int
     {
+        // الاستثناء ينتهي ذاتيًا؛ لا يحتاج مهمة مجدولة لإعادة الحد الأساسي.
         if ($this->exception_weekly_limit && $this->exception_expires_at?->isFuture()) {
             return $this->exception_weekly_limit;
         }
@@ -44,6 +46,7 @@ class PurchaseOrderLimitSetting extends Model
 
     public function effectiveCountedStatuses(): array
     {
+        // التقاطع يمنع أي قيمة قديمة أو غير معروفة من التأثير في حارس الإنشاء.
         return array_values(array_intersect(
             $this->counted_statuses ?: self::DEFAULT_COUNTED_STATUSES,
             ['draft', 'sent', 'received', 'approved', 'cancelled']

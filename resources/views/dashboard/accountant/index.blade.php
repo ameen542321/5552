@@ -33,6 +33,13 @@
         </div>
     </div>
     <div class="flex flex-wrap items-center gap-2">
+        @if(($pendingInventoryCountSessions ?? collect())->isNotEmpty())
+            <a href="{{ route('accountant.inventory-counts.index') }}" class="ui-btn ui-btn-warning" aria-label="فتح طلبات الجرد">
+                <i class="fa-solid fa-clipboard-check" aria-hidden="true"></i>
+                طلبات الجرد
+                <x-ui.badge variant="warning">{{ $pendingInventoryCountSessions->count() }}</x-ui.badge>
+            </a>
+        @endif
         <x-purchase-order-alerts-button :alerts="$pendingPurchaseOrderAlerts ?? collect()" context="accountant" />
         <x-accountant-dashboard-alerts
             :incoming-transfers="$pendingIncomingTransfersCount ?? 0"
@@ -150,7 +157,7 @@
         </div>
     </div>
 
-    {{-- بطاقة التحصيلات: تعرض تحصيل الأجل وتحصيل نظام المديونية كتحصيلات منفصلة نفذها المحاسب فقط. --}}
+    {{-- بطاقة التحصيلات: تعرض دخل التحصيل المسجل في يوم العمل، سواء نفذه المحاسب أو المالك. --}}
     @if(($accountantFinanceMovements['collections_total'] ?? $cashFromCollections) > 0)
     <div class="ui-card p-5 ui-hover-success-border transition-all">
         <div class="flex items-center justify-between">
